@@ -13,7 +13,7 @@ from utils.logger import log_query, log_chat_usage
 from session.manager import SessionManager
 from session.contextualizer import contextualize_question
 from utils.injection_patterns import INJECTION_PATTERNS
-from config.settings import OLLAMA_LLM
+from settings import OLLAMA_LLM
 
 session_manager = SessionManager()
 
@@ -134,16 +134,6 @@ def chat():
 
     sources = [document.metadata for document in documents]
 
-# Non-Stream
-#     answer = generate_answer(safe_query, context)
-#     return jsonify({
-#         "question": safe_query,
-#         "answer": answer,
-#         "context": context,
-#         "sources": sources,
-#         "fallback": False
-#     })
-
     def generate():
         yield f"data: {json.dumps({
             'type': 'metadata',
@@ -165,13 +155,7 @@ def chat():
                 usage["llm_input_tokens"] = metadata.get("input_tokens", 0)
                 usage["llm_output_tokens"] = metadata.get("output_tokens", 0)
 
-            # Ollama
             content = chunk.content
-
-            # API
-            # if not chunk.choices:
-            #     continue
-            # content = getattr(chunk.choices[0].delta, "content", None)
 
             if not content:
                 continue

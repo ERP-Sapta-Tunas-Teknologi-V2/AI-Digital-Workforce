@@ -5,7 +5,7 @@ from datetime import datetime
 from ingestion.cleaner import preprocessing
 from ingestion.loader import load_markdown
 from ingestion.splitter import StructureAwareChunker
-from rag.vectorstore import add_documents
+from ingestion.vectorstore import add_documents
 
 chunker = StructureAwareChunker(max_tokens=1000)
 

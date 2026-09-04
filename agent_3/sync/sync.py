@@ -4,7 +4,7 @@ os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
 from pathlib import Path
 from ingestion.indexer import index_document
-from rag.vectorstore import get_document_ids, delete_document
+from ingestion.vectorstore import get_document_ids, delete_document
 
 SOURCE_DIR = Path("stt")
 SUPPORTED_EXTENSIONS = {".docx"}

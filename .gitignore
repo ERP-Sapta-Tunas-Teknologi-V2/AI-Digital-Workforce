@@ -4,3 +4,5 @@
 /agent_3/routes/__pycache__
 /agent_3/rag/__pycache__
 /agent_3/utils/__pycache__
+/agent_3/session/__pycache__
+/agent_3/sync/__pycache__
