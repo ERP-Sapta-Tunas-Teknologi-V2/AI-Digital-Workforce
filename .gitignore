@@ -1,0 +1,6 @@
+.env
+/agent_3/documents
+/agent_3/__pycache__
+/agent_3/routes/__pycache__
+/agent_3/rag/__pycache__
+/agent_3/utils/__pycache__
