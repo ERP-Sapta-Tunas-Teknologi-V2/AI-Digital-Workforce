@@ -1,8 +1,8 @@
 .env
-/agent_3/documents
-/agent_3/__pycache__
-/agent_3/routes/__pycache__
-/agent_3/rag/__pycache__
-/agent_3/utils/__pycache__
-/agent_3/session/__pycache__
-/agent_3/sync/__pycache__
+/knowledge-expert/documents
+/knowledge-expert/__pycache__
+/knowledge-expert/routes/__pycache__
+/knowledge-expert/rag/__pycache__
+/knowledge-expert/utils/__pycache__
+/knowledge-expert/session/__pycache__
+/knowledge-expert/sync/__pycache__
