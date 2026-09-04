@@ -13,15 +13,22 @@ API Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan m
 * [Instalasi](#instalasi)
 * [Indexing Dokumen](#indexing-dokumen)
 * [Sinkronisasi Dokumen](#sinkronisasi-dokumen)
+* [Admin Endpoints](#admin-endpoints)
 * [Scheduler](#scheduler)
 * [Menjalankan API](#menjalankan-api)
 * [Testing](#testing)
 * [Retrieval](#retrieval)
 * [Session Management](#session-management)
 * [Logging](#logging)
+* [CORS](#cors)
+* [Rate Limiting](#rate-limiting)
+* [Log Export](#log-export)
+* [Analytics Endpoints](#analytics-endpoints)
 * [Deployment](#deployment)
 * [Production Checklist](#production-checklist)
+* [Performance](#performance)
 * [Dokumentasi](#dokumentasi)
+* [Project Flow](#project-flow)
 
 ---
 
@@ -155,7 +162,8 @@ ollama list
 │   └── vectorstore.py
 ├── routes/
 │   ├── chat.py
-│   └── analytics.py
+│   ├── analytics.py
+│   └── admin.py
 ├── sync/
 │   ├── export_logs.py
 │   ├── retention.py
@@ -405,6 +413,87 @@ New: 2 | Existing: 15 | Deleted: 1
 Untuk dokumen `New` dan `Existing`, proses indexing dijalankan kembali.
 
 Untuk dokumen yang sudah tidak terdapat pada source, seluruh embedding berdasarkan `document_id` dihapus.
+
+---
+
+## Admin Endpoints
+
+Selain dijalankan manual via script, sync dan ingest juga tersedia sebagai endpoint API untuk kebutuhan operasional.
+
+Akses dibatasi untuk role:
+
+```text
+Admin
+```
+
+Format yang didukung:
+
+```text
+.docx
+.pdf
+```
+
+### Ingest Endpoint
+
+Digunakan setelah dokumen sudah tersimpan di sistem (misal via proses upload terpisah).
+
+```http
+POST /api/admin/ingest
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "path": "path/to/file.docx"
+}
+```
+
+Proses indexing dijalankan secara asynchronous (background thread). Response:
+
+```json
+{
+  "message": "ingest started",
+  "file": "file.docx"
+}
+```
+
+Status code: `202 Accepted`.
+
+### Sync Endpoint
+
+```http
+POST /api/admin/sync
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "category": "stt"
+}
+```
+
+`category` merupakan nama folder di root project yang berisi dokumen sumber, dan harus salah satu dari:
+
+```text
+berita
+stt
+```
+
+Proses sync dijalankan secara asynchronous (background thread). Response:
+
+```json
+{
+  "message": "sync started for category 'stt'"
+}
+```
+
+Status code: `202 Accepted`.
+
+Progress dan hasil proses tidak dikembalikan melalui endpoint ini; gunakan log aplikasi untuk memantau status.
 
 ---
 
@@ -721,33 +810,61 @@ Export menggunakan CSV UTF-8 BOM.
 
 ---
 
+## Analytics Endpoints
+
+Selain log export, tersedia endpoint analytics tambahan untuk kebutuhan reporting.
+
+Akses dibatasi untuk role:
+
+```text
+Marketing
+Product
+```
+
+### Top FAQ
+
+```http
+GET /api/logs/top-faq?days=30&limit=5
+```
+
+Mengembalikan daftar pertanyaan yang paling sering diajukan dalam rentang hari tertentu.
+
+| Parameter | Default | Description                          |
+| --------- | ------: | ------------------------------------- |
+| `days`    |      30 | Rentang hari ke belakang yang dihitung |
+| `limit`   |       5 | Jumlah maksimum FAQ yang dikembalikan |
+
+### Cost — Daily
+
+```http
+GET /api/cost/daily?date=YYYY-MM-DD
+```
+
+Mengembalikan laporan biaya (LLM/embedding) untuk satu hari tertentu. Jika `date` tidak dikirim, menggunakan tanggal berjalan.
+
+### Cost — Weekly
+
+```http
+GET /api/cost/weekly?date=YYYY-MM-DD
+```
+
+Mengembalikan laporan biaya mingguan hingga tanggal `date` (default: hari ini).
+
+### Cost — Budget
+
+```http
+GET /api/cost/budget
+```
+
+Mengembalikan status penggunaan budget saat ini terhadap limit yang ditentukan.
+
+Detail lengkap request/response setiap endpoint di atas tersedia pada [`api-contract.md`](docs/api-contract.md).
+
+---
+
 ## Deployment
 
-Development menggunakan:
-
-```text
-Flask
-+
-Ollama
-+
-Qwen2.5
-+
-BGE-M3
-```
-
-Production sebaiknya menggunakan application server seperti:
-
-```text
-Gunicorn
-```
-
-Contoh:
-
-```bash
-gunicorn app:app
-```
-
-Jangan menggunakan Flask development server untuk production.
+Deployment target: Server Ubuntu dengan Flask dan Ollama berjalan pada server yang sama.
 
 Architecture production:
 
@@ -756,7 +873,7 @@ Frontend
    ↓
 HTTPS
    ↓
-Reverse Proxy / Load Balancer
+Nginx (Reverse Proxy)
    ↓
 Gunicorn
    ↓
@@ -764,23 +881,151 @@ Flask
    ↓
 RAG
    ├── Supabase
-   ├── BGE-M3
-   └── Qwen2.5 / Ollama
+   ├── BGE-M3 (Ollama)
+   └── Qwen2.5 (Ollama)
 ```
 
-Jika Ollama dijalankan pada server production:
+Jangan menggunakan Flask development server (`flask run` / `app.run(debug=True)`) untuk production.
+
+### 1. Setup Server
+
+```bash
+sudo apt update && sudo apt upgrade -y
+sudo apt install -y python3 python3-venv python3-pip nginx git
+```
+
+### 2. Install Ollama
+
+```bash
+curl -fsSL https://ollama.com/install.sh | sh
+ollama pull qwen2.5
+ollama pull bge-m3
+ollama list
+```
+
+Ollama berjalan sebagai systemd service pada:
 
 ```text
-Flask
-   ↓
-Ollama API
-   ↓
-Qwen2.5
+http://127.0.0.1:11434
 ```
 
-Pastikan Ollama tidak diekspos langsung ke public internet tanpa network security yang sesuai.
+Port ini tidak boleh diekspos langsung ke public internet.
 
-### Production Environment
+### 3. Deploy Aplikasi
+
+```bash
+git clone <repo-url> /opt/rag-chatbot
+cd /opt/rag-chatbot
+python3 -m venv .venv
+source .venv/bin/activate
+pip install -r requirements.txt
+pip install gunicorn
+```
+
+Buat `.env` sesuai [Konfigurasi Environment](#konfigurasi-environment), lalu batasi permission:
+
+```bash
+chmod 600 .env
+```
+
+### 4. Jalankan dengan Gunicorn (systemd)
+
+Buat `/etc/systemd/system/rag-chatbot.service`:
+
+```ini
+[Unit]
+Description=RAG Chatbot Flask App
+After=network.target ollama.service
+
+[Service]
+User=www-data
+WorkingDirectory=/opt/rag-chatbot
+EnvironmentFile=/opt/rag-chatbot/.env
+ExecStart=/opt/rag-chatbot/.venv/bin/gunicorn --workers 3 --worker-class gthread --threads 4 --timeout 120 --bind 127.0.0.1:8000 app:app
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now rag-chatbot
+sudo systemctl status rag-chatbot
+```
+
+`worker-class gthread` digunakan agar koneksi SSE pada `/api/chat` tidak memblokir worker lain.
+
+### 5. Scheduler sebagai Service Terpisah
+
+`scheduler.py` dijalankan sebagai proses long-running terpisah dari Gunicorn.
+
+Buat `/etc/systemd/system/rag-scheduler.service`:
+
+```ini
+[Unit]
+Description=RAG Chatbot Scheduler
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/opt/rag-chatbot
+EnvironmentFile=/opt/rag-chatbot/.env
+ExecStart=/opt/rag-chatbot/.venv/bin/python scheduler.py
+Restart=always
+
+[Install]
+WantedBy=multi-user.target
+```
+
+```bash
+sudo systemctl enable --now rag-scheduler
+```
+
+### 6. Setup Nginx (Reverse Proxy)
+
+Buat `/etc/nginx/sites-available/rag-chatbot`:
+
+```nginx
+server {
+    listen 80;
+    server_name saptatunas.com;
+
+    location /api/chat {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_buffering off;
+        proxy_cache off;
+        proxy_read_timeout 300s;
+    }
+
+    location / {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}
+```
+
+```bash
+sudo ln -s /etc/nginx/sites-available/rag-chatbot /etc/nginx/sites-enabled/
+sudo nginx -t
+sudo systemctl restart nginx
+```
+
+`proxy_buffering off` wajib pada `/api/chat` agar SSE stream diteruskan secara real-time, bukan di-buffer oleh Nginx.
+
+### 7. HTTPS dengan Certbot
+
+```bash
+sudo apt install -y certbot python3-certbot-nginx
+sudo certbot --nginx -d saptatunas.com
+```
+
+Production harus menggunakan HTTPS.
+
+### 8. Production Environment
 
 Gunakan environment variables untuk:
 
@@ -799,80 +1044,17 @@ Debug mode harus dinonaktifkan:
 FLASK_DEBUG=0
 ```
 
-Production harus menggunakan HTTPS.
+### 9. Firewall
 
----
+Batasi akses hanya pada port yang diperlukan:
 
-## Production Checklist
-
-### Database
-
-```text
-[ ] Supabase production project tersedia
-[ ] pgvector aktif
-[ ] supabase.sql sudah dijalankan
-[ ] RLS dikonfigurasi
-[ ] Backup tersedia
+```bash
+sudo ufw allow 80
+sudo ufw allow 443
+sudo ufw enable
 ```
 
-### Environment
-
-```text
-[ ] SUPABASE_SECRET_KEY dikonfigurasi
-[ ] Secret tidak berada di repository
-[ ] Debug mode disabled
-[ ] Production environment terpisah dari development
-```
-
-### Ollama
-
-```text
-[ ] Ollama tersedia
-[ ] Qwen2.5 tersedia
-[ ] BGE-M3 tersedia
-[ ] Model dapat diakses oleh application
-[ ] Resource CPU/GPU mencukupi
-```
-
-### API
-
-```text
-[ ] Request validation aktif
-[ ] Prompt injection validation aktif
-[ ] SSE streaming berjalan
-[ ] Fallback response berjalan
-```
-
-### Security
-
-```text
-[ ] HTTPS aktif
-[ ] CORS whitelist production aktif
-[ ] Wildcard CORS tidak digunakan
-[ ] Rate limiting aktif
-[ ] Role authorization untuk export aktif
-[ ] Session isolation aktif
-[ ] SUPABASE_SECRET_KEY tidak dikirim ke frontend
-```
-
-### Session
-
-```text
-[ ] Idle timeout 30 menit
-[ ] Absolute timeout 24 jam
-[ ] Expired session tidak menggunakan history
-[ ] Production storage menggunakan Database / Redis
-```
-
-### Monitoring
-
-```text
-[ ] Query logging aktif
-[ ] Retrieval latency logging aktif
-[ ] LLM latency logging aktif
-[ ] Error logging aktif
-[ ] Retention cleanup aktif
-```
+Port `8000` (Gunicorn) dan `11434` (Ollama) tidak boleh dapat diakses langsung dari luar server.
 
 ---
 

@@ -1,7 +1,7 @@
 from functools import wraps
 from flask import request, jsonify
 
-ALLOWED_ROLES = {"Marketing", "Product"}
+ALLOWED_ROLES = {"Marketing", "Product", "Admin"}
 
 def require_role(*roles):
     def decorator(func):

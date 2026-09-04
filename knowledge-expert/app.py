@@ -4,6 +4,7 @@ from flask_cors import CORS
 from utils.extensions import limiter
 from routes.chat import chat_bp
 from routes.analytics import analytics_bp
+from routes.admin import admin_bp
 
 ALLOWED_ORIGINS = ["https://saptatunas.com"]
 
@@ -14,6 +15,7 @@ def create_app():
 
     app.register_blueprint(chat_bp, url_prefix="/api")
     app.register_blueprint(analytics_bp, url_prefix="/api")
+    app.register_blueprint(admin_bp, url_prefix="/api/admin")
 
     @app.route("/")
     def index():
