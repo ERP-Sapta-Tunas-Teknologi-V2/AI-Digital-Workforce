@@ -14,7 +14,6 @@ API Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan m
 * [Indexing Dokumen](#indexing-dokumen)
 * [Sinkronisasi Dokumen](#sinkronisasi-dokumen)
 * [Admin Endpoints](#admin-endpoints)
-* [Scheduler](#scheduler)
 * [Menjalankan API](#menjalankan-api)
 * [Testing](#testing)
 * [Retrieval](#retrieval)
@@ -151,9 +150,9 @@ ollama list
 │   ├── indexer.py
 │   ├── loader.py
 │   └── splitter.py
-├── insert/
-│   ├── ingest.py
-│   ├── scheduler.py
+├── sync/
+│   ├── export_logs.py
+│   ├── retention.py
 │   └── sync.py
 ├── rag/
 │   ├── chain.py
@@ -164,10 +163,6 @@ ollama list
 │   ├── chat.py
 │   ├── analytics.py
 │   └── admin.py
-├── sync/
-│   ├── export_logs.py
-│   ├── retention.py
-│   └── scheduler.py
 ├── utils/
 │   ├── anonymizer.py
 │   ├── extensions.py
@@ -181,6 +176,7 @@ ollama list
 ├── .env
 ├── requirements.txt
 ├── supabase.sql
+├── ingest.py
 └── app.py
 ```
 
@@ -244,7 +240,7 @@ SUPABASE_SECRET_KEY=SECRET-KEY
 
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_LLM=qwen2.5
-LOCAL_EMB_MODEL=bge-m3
+EMBEDDING_MODEL=bge-m3
 ```
 
 Nama variable harus disesuaikan dengan konfigurasi pada:
@@ -494,85 +490,6 @@ Proses sync dijalankan secara asynchronous (background thread). Response:
 Status code: `202 Accepted`.
 
 Progress dan hasil proses tidak dikembalikan melalui endpoint ini; gunakan log aplikasi untuk memantau status.
-
----
-
-## Scheduler
-
-Scheduler digunakan untuk menjalankan synchronization dan cleanup secara otomatis.
-
-### Konten Dinamis
-
-Konten yang sering berubah dapat disinkronkan secara harian.
-
-```text
-Daily
-01:00
-→ sync
-```
-
-### Konten Statis
-
-Konten yang relatif jarang berubah dapat disinkronkan secara mingguan.
-
-```text
-Weekly
-Sunday 02:00
-→ sync
-```
-
-### Retention Cleanup
-
-Cleanup data expired dapat dijalankan secara berkala:
-
-```text
-Daily
-02:00
-→ retention cleanup
-```
-
----
-
-## Menjalankan API
-
-Pastikan:
-
-```text
-.venv
-.env
-Supabase
-Ollama
-Qwen2.5
-BGE-M3
-```
-
-telah dikonfigurasi.
-
-Jalankan:
-
-```bash
-flask run --debug
-```
-
-Default API:
-
-```text
-http://127.0.0.1:5000
-```
-
-Root endpoint:
-
-```http
-GET /
-```
-
-Response:
-
-```json
-{
-  "message": "RAG Service is running"
-}
-```
 
 ---
 
@@ -956,33 +873,7 @@ sudo systemctl status rag-chatbot
 
 `worker-class gthread` digunakan agar koneksi SSE pada `/api/chat` tidak memblokir worker lain.
 
-### 5. Scheduler sebagai Service Terpisah
-
-`scheduler.py` dijalankan sebagai proses long-running terpisah dari Gunicorn.
-
-Buat `/etc/systemd/system/rag-scheduler.service`:
-
-```ini
-[Unit]
-Description=RAG Chatbot Scheduler
-After=network.target
-
-[Service]
-User=www-data
-WorkingDirectory=/opt/rag-chatbot
-EnvironmentFile=/opt/rag-chatbot/.env
-ExecStart=/opt/rag-chatbot/.venv/bin/python scheduler.py
-Restart=always
-
-[Install]
-WantedBy=multi-user.target
-```
-
-```bash
-sudo systemctl enable --now rag-scheduler
-```
-
-### 6. Setup Nginx (Reverse Proxy)
+### 7. Setup Nginx (Reverse Proxy)
 
 Buat `/etc/nginx/sites-available/rag-chatbot`:
 
@@ -1016,7 +907,7 @@ sudo systemctl restart nginx
 
 `proxy_buffering off` wajib pada `/api/chat` agar SSE stream diteruskan secara real-time, bukan di-buffer oleh Nginx.
 
-### 7. HTTPS dengan Certbot
+### 8. HTTPS dengan Certbot
 
 ```bash
 sudo apt install -y certbot python3-certbot-nginx
@@ -1025,7 +916,7 @@ sudo certbot --nginx -d saptatunas.com
 
 Production harus menggunakan HTTPS.
 
-### 8. Production Environment
+### 9. Production Environment
 
 Gunakan environment variables untuk:
 
@@ -1035,7 +926,7 @@ SUPABASE_KEY
 SUPABASE_SECRET_KEY
 OLLAMA_BASE_URL
 OLLAMA_LLM
-LOCAL_EMB_MODEL
+EMBEDDING_MODEL
 ```
 
 Debug mode harus dinonaktifkan:
@@ -1044,7 +935,7 @@ Debug mode harus dinonaktifkan:
 FLASK_DEBUG=0
 ```
 
-### 9. Firewall
+### 10. Firewall
 
 Batasi akses hanya pada port yang diperlukan:
 

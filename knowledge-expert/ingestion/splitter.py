@@ -4,11 +4,11 @@ import hashlib
 import re
 
 from utils.injection_patterns import INJECTION_PATTERNS
-from settings import LOCAL_EMB_MODEL
+from settings import EMBEDDING_MODEL
 
 class StructureAwareChunker:
     def __init__(self, max_tokens=1000):
-        self.tokenizer = AutoTokenizer.from_pretrained(f"BAAI/{LOCAL_EMB_MODEL}")
+        self.tokenizer = AutoTokenizer.from_pretrained(f"BAAI/{EMBEDDING_MODEL}")
         self.max_tokens = max_tokens
 
     def _scan_injection(self, content):
@@ -32,7 +32,7 @@ class StructureAwareChunker:
 
         return None
 
-    def _create_chunks(self, blocks, source, document_id, uploaded_at):
+    def _create_chunks(self, blocks, source, document_id, category, uploaded_at):
         sections = self._build_sections(blocks)
         documents = []
         chunk_index = 0
@@ -47,6 +47,7 @@ class StructureAwareChunker:
                         "chunk_index": chunk_index,
                         "page": chunk["pages"],
                         "section_title": section["title"],
+                        "category": category,
                         "uploaded_at": uploaded_at,
                         "fingerprint": chunk["fingerprint"]
                     }
@@ -55,7 +56,7 @@ class StructureAwareChunker:
 
         return documents
 
-    def split_document(self, page_documents, source, document_id, uploaded_at):
+    def split_markdown(self, page_documents, source, document_id, category, uploaded_at):
         blocks = []
 
         for page_document in page_documents:
@@ -78,7 +79,27 @@ class StructureAwareChunker:
                     "pages": [page_number]
                 })
 
-        return self._create_chunks(blocks, source, document_id, uploaded_at)
+        return self._create_chunks(blocks, source, document_id, category, uploaded_at)
+
+    def split_docling(self, docling_doc, source, document_id, category, uploaded_at):
+        blocks = []
+
+        for item, level in docling_doc.iterate_items():
+            label = getattr(getattr(item, "label", None), "value", None)
+            if label == "picture": continue
+
+            text = self._extract_item_text(item, docling_doc)
+            if not text or not text.strip(): continue
+
+            pages = []
+
+            for prov in getattr(item, "prov", []) or []:
+                if prov.page_no not in pages:
+                    pages.append(prov.page_no)
+
+            blocks.append({"text": text.strip(), "label": label, "level": level, "pages": pages})
+
+        return self._create_chunks(blocks, source, document_id, category, uploaded_at)
 
     def _build_sections(self, blocks):
         sections = []
@@ -221,7 +242,6 @@ class StructureAwareChunker:
     def _make_chunk(self, blocks, heading):
         content = "\n\n".join(block["text"] for block in blocks)
         content = self._scan_injection(content)
-        content = f"{content}\n\nSapta Tunas Teknologi (STT)"
 
         if heading:
             content = f"{heading}\n\n{content}"
@@ -230,8 +250,7 @@ class StructureAwareChunker:
 
         if tokens > self.max_tokens:
             print(
-                f"WARNING: chunk exceeds limit: "
-                f"{tokens} tokens | heading={heading!r}"
+                f"WARNING: chunk exceeds limit: {tokens} tokens | heading={heading!r}"
             )
 
         pages = []

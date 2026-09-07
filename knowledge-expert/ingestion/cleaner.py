@@ -34,7 +34,7 @@ def preprocessing(path, document_id):
             pages = pdf_to_md(pdf_path)
 
     elif path.suffix.lower() == ".pdf":
-        pages = pdf_to_md(pdf_path)
+        pages = pdf_to_md(path)
         
     else:
         raise ValueError(f"Unsupported file type: {path.suffix}")

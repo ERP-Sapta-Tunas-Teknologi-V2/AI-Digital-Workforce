@@ -409,7 +409,6 @@ Implementasi retention harus dapat diverifikasi melalui:
 
 ### Scheduled Cleanup
 
-* Review scheduler configuration.
 * Review cleanup execution log.
 * Review failed cleanup events.
 * Verify database records after cleanup.

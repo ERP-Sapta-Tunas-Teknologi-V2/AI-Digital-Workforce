@@ -6,17 +6,18 @@ from pathlib import Path
 from ingestion.indexer import index_document
 from ingestion.vectorstore import get_document_ids, delete_document
 
-SUPPORTED_EXTENSIONS = {".docx", ".pdf"}
+SOURCE_DIR = Path("documents")
+SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".xlsx"}
 
 def sync_documents(category):
-    source_dir = Path(category)
+    source_dir = SOURCE_DIR / category
     source_files = {}
 
     for path in source_dir.rglob("*"):
         if not path.is_file() or path.suffix.lower() not in SUPPORTED_EXTENSIONS: 
             continue
 
-        document_id = f"{path.stem}"
+        document_id = f"{category}:{path.stem}"
         source_files[document_id] = path
 
     source_ids = set(source_files)
