@@ -4,11 +4,9 @@ from flask import Blueprint, request, jsonify
 
 from utils.permissions import require_role
 from ingestion.indexer import index_document
-from sync.sync import sync_documents, SUPPORTED_EXTENSIONS
+from sync.sync import sync_documents, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
 
 admin_bp = Blueprint("admin", __name__)
-
-ALLOWED_CATEGORIES = {"sop", "datasheet", "pricelist"}
 
 def sync_background(category):
     try:
@@ -28,11 +26,18 @@ def sync():
     data = request.get_json(silent=True) or {}
     category = data.get("category")
 
-    if category not in ALLOWED_CATEGORIES:
-        return jsonify({"error": f"category must be one of {sorted(ALLOWED_CATEGORIES)}"}), 400
+    if category is not None:
+        if not isinstance(category, str) or category not in ALLOWED_CATEGORIES:
+            return jsonify({"error": f"category must be one of {sorted(ALLOWED_CATEGORIES)}"}), 400
 
     Thread(target=sync_background, args=(category,), daemon=True).start()
-    return jsonify({"message": f"sync started for category '{category}'"}), 202
+
+    if category:
+        message = f"sync started for category '{category}'"
+    else:
+        message = "sync started for all categories"
+
+    return jsonify({"message": message}), 202
 
 @admin_bp.route("/ingest", methods=["POST"])
 @require_role("Admin")
@@ -52,4 +57,5 @@ def ingest():
         return jsonify({"error": "file not found"}), 404
 
     Thread(target=ingest_background, args=(str(path),), daemon=True).start()
+
     return jsonify({"message": "ingest started", "file": path.name}), 202

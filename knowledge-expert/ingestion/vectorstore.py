@@ -328,11 +328,12 @@ def add_documents(chunks):
     }
 
 
-def get_document_ids():
+def get_document_ids(category):
     result = (
         supabase
         .table("documents")
         .select("document_id")
+        .like("document_id", f"{category}:%")
         .execute()
     )
 

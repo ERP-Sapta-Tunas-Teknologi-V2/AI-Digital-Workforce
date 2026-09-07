@@ -384,13 +384,24 @@ Gunakan proses ini untuk indexing dokumen secara manual.
 
 ## Sinkronisasi Dokumen
 
-Untuk melakukan sinkronisasi seluruh dokumen:
+Sinkronisasi membandingkan dokumen sumber pada direktori `documents/` dengan data yang terdapat di vector database.
 
-```bash
-python sync.py
+Struktur direktori:
+
+```text
+documents/
+├── sop/
+├── datasheet/
+└── pricelist/
 ```
 
-Synchronization membandingkan source dokumen dengan data yang terdapat di vector database.
+Format dokumen yang didukung:
+
+```text
+.docx
+.pdf
+.xlsx
+```
 
 Status dokumen:
 
@@ -403,35 +414,28 @@ Deleted
 Contoh output:
 
 ```text
-New: 2 | Existing: 15 | Deleted: 1
+[SYNC] datasheet | New: 2 | Existing: 15 | Deleted: 1
 ```
 
-Untuk dokumen `New` dan `Existing`, proses indexing dijalankan kembali.
+Dokumen `New` dan `Existing` akan diproses melalui indexing. Fingerprint digunakan untuk melewati chunk yang tidak mengalami perubahan.
 
-Untuk dokumen yang sudah tidak terdapat pada source, seluruh embedding berdasarkan `document_id` dihapus.
+Dokumen yang sudah tidak terdapat pada source akan dihapus dari vector database berdasarkan `document_id`.
 
 ---
 
 ## Admin Endpoints
 
-Selain dijalankan manual via script, sync dan ingest juga tersedia sebagai endpoint API untuk kebutuhan operasional.
+Sync dan ingest tersedia sebagai endpoint API untuk kebutuhan operasional.
 
-Akses dibatasi untuk role:
+Akses endpoint dibatasi untuk role:
 
 ```text
 Admin
 ```
 
-Format yang didukung:
-
-```text
-.docx
-.pdf
-```
-
 ### Ingest Endpoint
 
-Digunakan setelah dokumen sudah tersimpan di sistem (misal via proses upload terpisah).
+Digunakan setelah dokumen sudah tersimpan di sistem, misalnya melalui proses upload terpisah.
 
 ```http
 POST /api/admin/ingest
@@ -442,16 +446,26 @@ Body:
 
 ```json
 {
-  "path": "path/to/file.docx"
+  "path": "documents/datasheet/example.pdf"
 }
 ```
 
-Proses indexing dijalankan secara asynchronous (background thread). Response:
+Format file yang didukung:
+
+```text
+.docx
+.pdf
+.xlsx
+```
+
+Proses indexing dijalankan secara asynchronous menggunakan background thread.
+
+Response:
 
 ```json
 {
   "message": "ingest started",
-  "file": "file.docx"
+  "file": "example.pdf"
 }
 ```
 
@@ -459,37 +473,68 @@ Status code: `202 Accepted`.
 
 ### Sync Endpoint
 
+Endpoint ini digunakan untuk melakukan sinkronisasi seluruh dokumen atau hanya satu category.
+
 ```http
 POST /api/admin/sync
 Content-Type: application/json
 ```
 
-Body:
+#### Sync seluruh category
+
+Kirim body kosong:
+
+```json
+{}
+```
+
+Proses akan melakukan sync terhadap:
+
+```text
+documents/sop/
+documents/datasheet/
+documents/pricelist/
+```
+
+Response:
 
 ```json
 {
-  "category": "stt"
+  "message": "sync started for all categories"
 }
 ```
 
-`category` merupakan nama folder di root project yang berisi dokumen sumber, dan harus salah satu dari:
+#### Sync satu category
 
-```text
-berita
-stt
-```
-
-Proses sync dijalankan secara asynchronous (background thread). Response:
+Contoh:
 
 ```json
 {
-  "message": "sync started for category 'stt'"
+  "category": "datasheet"
+}
+```
+
+Category yang diperbolehkan:
+
+```text
+sop
+datasheet
+pricelist
+```
+
+Response:
+
+```json
+{
+  "message": "sync started for category 'datasheet'"
 }
 ```
 
 Status code: `202 Accepted`.
 
-Progress dan hasil proses tidak dikembalikan melalui endpoint ini; gunakan log aplikasi untuk memantau status.
+Proses sync dijalankan secara asynchronous menggunakan background thread.
+
+Progress dan hasil proses tidak dikembalikan melalui endpoint ini. Gunakan log aplikasi untuk memantau status sinkronisasi.
 
 ---
 
