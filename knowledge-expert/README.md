@@ -192,7 +192,7 @@ ollama list
 4. Isi konfigurasi:
 
 ```text
-Project name: rag-chatbot
+Project name: digital-workforce
 Database password: sesuai kebutuhan
 Enable Data API: aktif
 Automatically expose new tables: nonaktif
@@ -267,7 +267,7 @@ log/
 Clone repository dan masuk ke directory project:
 
 ```bash
-cd rag-chatbot
+cd AI-Digital-Workforce
 ```
 
 Buat virtual environment:
@@ -876,8 +876,8 @@ Port ini tidak boleh diekspos langsung ke public internet.
 ### 3. Deploy Aplikasi
 
 ```bash
-git clone <repo-url> /opt/rag-chatbot
-cd /opt/rag-chatbot
+git clone <repo-url> /opt/AI-Digital-Workforce
+cd /opt/AI-Digital-Workforce
 python3 -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
@@ -892,7 +892,7 @@ chmod 600 .env
 
 ### 4. Jalankan dengan Gunicorn (systemd)
 
-Buat `/etc/systemd/system/rag-chatbot.service`:
+Buat `/etc/systemd/system/AI-Digital-Workforce.service`:
 
 ```ini
 [Unit]
@@ -901,9 +901,9 @@ After=network.target ollama.service
 
 [Service]
 User=www-data
-WorkingDirectory=/opt/rag-chatbot
-EnvironmentFile=/opt/rag-chatbot/.env
-ExecStart=/opt/rag-chatbot/.venv/bin/gunicorn --workers 3 --worker-class gthread --threads 4 --timeout 120 --bind 127.0.0.1:8000 app:app
+WorkingDirectory=/opt/AI-Digital-Workforce
+EnvironmentFile=/opt/AI-Digital-Workforce/.env
+ExecStart=/opt/AI-Digital-Workforce/.venv/bin/gunicorn --workers 3 --worker-class gthread --threads 4 --timeout 120 --bind 127.0.0.1:8000 app:app
 Restart=always
 
 [Install]
@@ -912,15 +912,15 @@ WantedBy=multi-user.target
 
 ```bash
 sudo systemctl daemon-reload
-sudo systemctl enable --now rag-chatbot
-sudo systemctl status rag-chatbot
+sudo systemctl enable --now AI-Digital-Workforce
+sudo systemctl status AI-Digital-Workforce
 ```
 
 `worker-class gthread` digunakan agar koneksi SSE pada `/api/chat` tidak memblokir worker lain.
 
 ### 7. Setup Nginx (Reverse Proxy)
 
-Buat `/etc/nginx/sites-available/rag-chatbot`:
+Buat `/etc/nginx/sites-available/AI-Digital-Workforce`:
 
 ```nginx
 server {
@@ -945,7 +945,7 @@ server {
 ```
 
 ```bash
-sudo ln -s /etc/nginx/sites-available/rag-chatbot /etc/nginx/sites-enabled/
+sudo ln -s /etc/nginx/sites-available/AI-Digital-Workforce /etc/nginx/sites-enabled/
 sudo nginx -t
 sudo systemctl restart nginx
 ```
