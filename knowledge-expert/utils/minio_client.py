@@ -1,5 +1,6 @@
 from minio import Minio
 from datetime import timezone
+import io
 import config
 
 client = Minio(
@@ -57,3 +58,17 @@ def delete_file(category: str, filename: str):
         config.MINIO_BUCKET,
         object_key(category, filename)
     )
+
+def download_file(category: str, filename: str):
+    response = client.get_object(
+        config.MINIO_BUCKET,
+        object_key(category, filename)
+    )
+
+    try:
+        data = response.read()
+    finally:
+        response.close()
+        response.release_conn()
+
+    return io.BytesIO(data)

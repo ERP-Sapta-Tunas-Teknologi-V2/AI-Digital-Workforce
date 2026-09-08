@@ -1,10 +1,10 @@
 from pathlib import Path
 from threading import Thread
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 
 from utils.permissions import require_role
 from utils.locks import try_acquire, release, is_locked
-from utils.minio_client import file_exists, upload_file, list_files, delete_file
+from utils.minio_client import file_exists, upload_file, list_files, delete_file, download_file
 from utils.status_tracker import get_all_statuses, delete_status
 from ingestion.indexer import index_document
 from ingestion.vectorstore import delete_document
@@ -228,6 +228,42 @@ def delete_document_endpoint():
     except Exception as e:
         return jsonify({
             "error": str(e)
+        }), 500
+
+@admin_bp.route("/documents/download", methods=["GET"])
+# @require_role("Admin")
+def download_document():
+    category = request.args.get("category")
+    filename = request.args.get("filename")
+
+    if not category or category not in ALLOWED_CATEGORIES:
+        return jsonify({
+            "error": f"category must be one of {sorted(ALLOWED_CATEGORIES)}"
+        }), 400
+
+    if not filename or not isinstance(filename, str):
+        return jsonify({"error": "filename is required"}), 400
+
+    if not file_exists(category, filename):
+        return jsonify({"error": "file not found in storage"}), 404
+
+    try:
+        file_stream = download_file(category, filename)
+
+        ext = Path(filename).suffix.lower()
+        mimetype = MIME_TYPES.get(ext, "application/octet-stream")
+
+        return send_file(
+            file_stream,
+            mimetype=mimetype,
+            as_attachment=True,
+            download_name=filename
+        )
+
+    except Exception as e:
+        print(f"[DOWNLOAD] failed: {e}")
+        return jsonify({
+            "error": "failed to download document"
         }), 500
 
 def _to_wib(iso_timestamp):

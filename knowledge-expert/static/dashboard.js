@@ -105,6 +105,14 @@ function renderDocuments() {
 
             <td>
                 <button
+                    class="download-button"
+                    data-action="download"
+                    data-category="${escapeAttr(doc.category)}"
+                    data-filename="${escapeAttr(doc.filename)}">
+                    Download
+                </button>
+
+                <button
                     class="ingest-button"
                     data-action="ingest"
                     data-category="${escapeAttr(doc.category)}"
@@ -222,12 +230,16 @@ async function uploadFile(file, category, replace) {
 
 documentsEl.addEventListener("click", async event => {
     const button = event.target.closest("button");
-
     if (!button) return;
 
     const action = button.dataset.action;
     const category = button.dataset.category;
     const filename = button.dataset.filename;
+
+    if (action === "download") {
+        downloadDocument(category, filename);
+        return;
+    }
 
     if (action === "ingest") {
         await ingestDocument(category, filename);
@@ -241,6 +253,15 @@ documentsEl.addEventListener("click", async event => {
         await deleteDocument(category, filename);
     }
 });
+
+function downloadDocument(category, filename) {
+    const params = new URLSearchParams({
+        category,
+        filename
+    });
+
+    window.location.href = `/api/admin/documents/download?${params}`;
+}
 
 async function ingestDocument(category, filename) {
     if (!confirm(`Ingest "${filename}" ke vector database?`)) {

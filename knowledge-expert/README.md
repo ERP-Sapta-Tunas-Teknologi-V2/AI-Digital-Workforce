@@ -822,22 +822,6 @@ Body:
 }
 ```
 
-Proses:
-
-```text
-Vector chunks
-   ↓
-DELETE
-
-document_status
-   ↓
-DELETE
-
-MinIO
-   ↓
-tetap
-```
-
 Response:
 
 ```json
@@ -869,22 +853,6 @@ Body:
   "category": "datasheet",
   "filename": "example.pdf"
 }
-```
-
-Proses:
-
-```text
-Supabase / pgvector
-   ↓
-DELETE vectors
-
-document_status
-   ↓
-DELETE status
-
-MinIO
-   ↓
-DELETE file
 ```
 
 Response:

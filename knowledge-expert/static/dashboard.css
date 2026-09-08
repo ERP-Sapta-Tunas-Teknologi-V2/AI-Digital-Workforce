@@ -250,3 +250,10 @@ th {
 .delete-button {
     background: #b42318;
 }
+
+.download-button {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+    margin-left: 4px;
+}
