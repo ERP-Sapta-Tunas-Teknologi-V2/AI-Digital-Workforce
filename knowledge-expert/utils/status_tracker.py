@@ -15,3 +15,12 @@ def set_status(document_id: str, source: str, category: str, status: str, detail
         })
         .execute()
     )
+
+def get_all_statuses():
+    result = (
+        supabase
+        .table("document_status")
+        .select("document_id, status, last_ingested_at")
+        .execute()
+    )
+    return result.data or []

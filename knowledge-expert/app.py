@@ -2,6 +2,7 @@ from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 
 from utils.extensions import limiter
+from utils.minio_client import ensure_bucket, client
 from routes.chat import chat_bp
 from routes.analytics import analytics_bp
 from routes.admin import admin_bp
@@ -12,6 +13,9 @@ def create_app():
     app = Flask(__name__)
     limiter.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": ALLOWED_ORIGINS}})
+
+    ensure_bucket()
+    print(client.list_buckets())
 
     app.register_blueprint(chat_bp, url_prefix="/api")
     app.register_blueprint(analytics_bp, url_prefix="/api")

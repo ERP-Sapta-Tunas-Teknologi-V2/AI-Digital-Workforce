@@ -5,6 +5,7 @@ flask_cors==6.0.5
 flask_limiter==4.1.1
 langchain_core==1.6.1
 langchain_ollama==1.1.0
+minio==7.2.20
 pymupdf==1.28.2
 pymupdf4llm==1.28.2
 python-dotenv==1.2.3

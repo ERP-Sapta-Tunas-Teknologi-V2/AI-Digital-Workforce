@@ -43,6 +43,7 @@ API Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan m
 * Document processing: Docling
 * Response: Server-Sent Events (SSE)
 * Distributed lock: Redis
+* Object storage: MinIO
 
 ---
 
@@ -114,6 +115,7 @@ Qwen2.5
 BGE-M3
 Redis
 LibreOffice
+MinIO
 ```
 
 ### Ollama
@@ -228,6 +230,70 @@ libreoffice --version
 
 Konversi `.docx` ke `.pdf` menggunakan mode `--headless`, sehingga tidak memerlukan display/GUI dan aman dijalankan pada server tanpa desktop environment.
 
+### MinIO
+
+MinIO digunakan sebagai object storage untuk menyimpan file dokumen mentah sebelum di-ingest ke Supabase. File disimpan dalam struktur `{bucket}/{category}/{filename}`.
+
+#### Development (Windows via WSL + Docker Desktop)
+
+MinIO dijalankan melalui Docker. Pastikan Docker Desktop terinstal dengan WSL 2 Integration aktif untuk distro yang digunakan (lihat Settings → Resources → WSL Integration).
+
+Jalankan container dari dalam WSL:
+
+```bash
+docker run -d \
+  -p 9000:9000 \
+  -p 9001:9001 \
+  --name minio \
+  -e "MINIO_ROOT_USER=admin" \
+  -e "MINIO_ROOT_PASSWORD=password" \
+  -v minio-data:/data \
+  minio/minio server /data --console-address ":9001"
+```
+
+Port `9000` digunakan untuk API, port `9001` untuk Console (dashboard web).
+
+Akses Console:
+
+```text
+http://localhost:9001
+```
+
+Login menggunakan `MINIO_ROOT_USER` / `MINIO_ROOT_PASSWORD` yang telah ditentukan.
+
+Bucket akan dibuat otomatis oleh aplikasi saat startup (`ensure_bucket()`), tidak perlu dibuat manual.
+
+#### Production (Ubuntu)
+
+Instalasi dan konfigurasi mengikuti pola yang sama menggunakan Docker, dengan `MINIO_ROOT_USER`/`MINIO_ROOT_PASSWORD` yang kuat dan tidak menggunakan nilai default. Port `9000`/`9001` tidak diekspos langsung ke public internet — akses ke Console dibatasi melalui VPN/SSH tunnel atau reverse proxy dengan autentikasi tambahan.
+
+#### MinIO Client (`mc`)
+
+`mc` adalah CLI resmi untuk mengelola MinIO secara langsung (list, hapus, kosongkan bucket, dsb), terpisah dari operasi yang dilakukan lewat aplikasi.
+
+Instalasi (Linux/WSL):
+
+```bash
+curl -L https://dl.min.io/client/mc/release/linux-amd64/mc -o mc
+chmod +x mc
+sudo mv mc /usr/local/bin/
+mc --version
+```
+
+Tambahkan alias koneksi:
+
+```bash
+mc alias set myminio http://localhost:9000 admin password
+```
+
+Contoh penggunaan:
+
+```bash
+mc ls myminio                        # list bucket
+mc rm --recursive --force myminio/knowledge-expert   # kosongkan isi bucket
+mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
+```
+
 ---
 
 ## Struktur Project
@@ -258,8 +324,10 @@ Konversi `.docx` ke `.pdf` menggunakan mode `--headless`, sehingga tidak memerlu
 │   ├── anonymizer.py
 │   ├── extensions.py
 │   ├── locks.py
+│   ├── minio_client.py
 │   ├── permissions.py
 │   ├── query_logger.py
+│   ├── status_tracker.py
 │   ├── supabase_admin.py
 │   └── supabase_client.py
 ├── tests/
@@ -450,7 +518,7 @@ Menyimpan histori alert saat penggunaan budget (harian/mingguan) melewati thresh
 
 #### `document_status`
 
-Melacak status ingest/sync setiap dokumen (`pending`, `success`, `failed`, dsb) berdasarkan `document_id`, termasuk waktu terakhir diproses (`last_ingested_at`).
+Melacak status ingest setiap dokumen (`processing`, `success`, `failed`, `not_ingested`) berdasarkan `document_id`, termasuk waktu terakhir diproses (`last_ingested_at`). `document_id` mengacu pada file yang tersimpan di MinIO dengan format `{category}:{filename_tanpa_ekstensi}`.
 
 ### Function
 
@@ -500,16 +568,18 @@ Gunakan proses ini untuk indexing dokumen secara manual.
 
 ## Sinkronisasi Dokumen
 
-Sinkronisasi membandingkan dokumen sumber pada direktori `documents/` dengan data yang terdapat di vector database.
+Sinkronisasi membandingkan dokumen sumber pada MinIO dengan data yang terdapat di vector database.
 
-Struktur direktori:
+Struktur penyimpanan (bucket `knowledge-expert`):
 
 ```text
-documents/
+knowledge-expert/
 ├── sop/
 ├── datasheet/
 └── pricelist/
 ```
+
+Setiap kategori merupakan prefix folder pada bucket MinIO, bukan direktori filesystem lokal.
 
 Format dokumen yang didukung:
 
@@ -549,6 +619,90 @@ Akses endpoint dibatasi untuk role:
 Admin
 ```
 
+### Upload Dokumen
+
+```http
+POST /api/admin/documents/upload
+Content-Type: multipart/form-data
+```
+
+Form fields:
+
+| Field      | Required | Description                                  |
+| ---------- | -------- | --------------------------------------------- |
+| `file`     | ya       | File yang diupload                            |
+| `category` | ya       | Salah satu dari `sop`, `datasheet`, `pricelist` |
+| `replace`  | tidak    | `true` untuk menimpa file yang sudah ada      |
+
+Format file yang didukung:
+
+```text
+.pdf
+.docx
+.xlsx
+```
+
+Jika file dengan nama yang sama sudah ada di kategori tersebut dan `replace` tidak dikirim (atau `false`), response:
+
+```json
+{
+  "exists": true,
+  "message": "File 'example.pdf' already exists in category 'datasheet'. Replace it?"
+}
+```
+
+Status code: `409 Conflict`.
+
+Jika berhasil:
+
+```json
+{
+  "message": "File uploaded successfully",
+  "category": "datasheet",
+  "filename": "example.pdf"
+}
+```
+
+Status code: `201 Created`.
+
+### Daftar Dokumen
+
+```http
+GET /api/admin/documents?category=datasheet
+```
+
+Parameter `category` bersifat opsional; jika tidak dikirim, menampilkan seluruh kategori.
+
+Response menampilkan setiap file beserta waktu upload dan status ingest, dalam zona waktu WIB:
+
+```json
+[
+  {
+    "category": "datasheet",
+    "filename": "example.pdf",
+    "path": "datasheet/example.pdf",
+    "document_id": "datasheet:example",
+    "uploaded_at": "2026-09-08T02:30:00+00:00",
+    "uploaded_at_wib": "2026-09-08 09:30:00 WIB",
+    "ingest_status": "success",
+    "last_ingested_at": "2026-09-08T02:35:00+00:00",
+    "last_ingested_at_wib": "2026-09-08 09:35:00 WIB",
+    "size": 245678
+  }
+]
+```
+
+Nilai `ingest_status` yang mungkin muncul:
+
+```text
+not_ingested
+processing
+success
+failed
+```
+
+`ingest_status` diambil dari tabel `document_status` dan dicocokkan berdasarkan `document_id`.
+
 ### Ingest Endpoint
 
 Digunakan setelah dokumen sudah tersimpan di sistem, misalnya melalui proses upload terpisah.
@@ -562,9 +716,12 @@ Body:
 
 ```json
 {
-  "path": "documents/datasheet/example.pdf"
+  "category": "datasheet",
+  "filename": "example.pdf"
 }
 ```
+
+File harus sudah tersimpan di MinIO pada bucket dan kategori yang bersangkutan (lihat [Document Endpoints](#document-endpoints)). Jika file tidak ditemukan di storage, response `404 Not Found`.
 
 Format file yang didukung:
 

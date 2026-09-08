@@ -1,0 +1,53 @@
+from minio import Minio
+from datetime import timezone
+import config
+
+client = Minio(
+    config.MINIO_ENDPOINT,
+    access_key=config.MINIO_ACCESS_KEY,
+    secret_key=config.MINIO_SECRET_KEY,
+    secure=config.MINIO_SECURE,
+)
+
+def ensure_bucket():
+    if not client.bucket_exists(config.MINIO_BUCKET):
+        client.make_bucket(config.MINIO_BUCKET)
+
+def object_key(category: str, filename: str) -> str:
+    return f"{category}/{filename}"
+
+def file_exists(category: str, filename: str) -> bool:
+    try:
+        client.stat_object(config.MINIO_BUCKET, object_key(category, filename))
+        return True
+    except Exception:
+        return False
+
+def upload_file(category: str, filename: str, file_stream, length: int, content_type: str):
+    client.put_object(
+        config.MINIO_BUCKET,
+        object_key(category, filename),
+        file_stream,
+        length=length,
+        content_type=content_type
+    )
+
+def list_files(category: str = None):
+    prefix = f"{category}/" if category else ""
+    objects = client.list_objects(config.MINIO_BUCKET, prefix=prefix, recursive=True)
+
+    results = []
+    for obj in objects:
+        parts = obj.object_name.split("/", 1)
+        results.append({
+            "category": parts[0],
+            "filename": parts[1] if len(parts) > 1 else parts[0],
+            "path": obj.object_name,
+            "uploaded_at": obj.last_modified.astimezone(timezone.utc).isoformat() if obj.last_modified else None,
+            "size": obj.size
+        })
+    return results
+
+def download_path(category: str, filename: str) -> str:
+    """Return local temp path for pipeline use if needed, or object path for reference."""
+    return object_key(category, filename)
