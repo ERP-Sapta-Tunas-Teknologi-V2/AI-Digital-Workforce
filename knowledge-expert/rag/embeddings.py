@@ -1,7 +1,7 @@
 from langchain_ollama import OllamaEmbeddings
 from transformers import AutoTokenizer
 
-from settings import OLLAMA_BASE_URL, EMBEDDING_MODEL
+from config import OLLAMA_BASE_URL, EMBEDDING_MODEL
 embeddings = OllamaEmbeddings(model=EMBEDDING_MODEL, base_url=OLLAMA_BASE_URL)
 
 tokenizer = AutoTokenizer.from_pretrained(f"BAAI/{EMBEDDING_MODEL}")

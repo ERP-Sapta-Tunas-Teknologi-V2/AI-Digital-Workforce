@@ -6,7 +6,7 @@ from rag.embeddings import embeddings, count_embedding_tokens
 from rag.reranker import rerank
 from utils.supabase_client import supabase
 from utils.anonymizer import anonymize_query
-from settings import EMBEDDING_MODEL
+from config import EMBEDDING_MODEL
 
 # RERANK_THRESHOLD = 3.0
 

@@ -1,6 +1,6 @@
 from langchain_ollama import ChatOllama
 
-from settings import OLLAMA_BASE_URL, OLLAMA_LLM
+from config import OLLAMA_BASE_URL, OLLAMA_LLM
 contextualizer = ChatOllama(model=OLLAMA_LLM, base_url=OLLAMA_BASE_URL, temperature=0)
 
 SYSTEM_PROMPT = """Ubah pertanyaan terakhir pengguna menjadi pertanyaan yang berdiri sendiri berdasarkan riwayat percakapan.

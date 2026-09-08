@@ -4,7 +4,7 @@ import hashlib
 import re
 
 from utils.injection_patterns import INJECTION_PATTERNS
-from settings import EMBEDDING_MODEL
+from config import EMBEDDING_MODEL
 
 class StructureAwareChunker:
     def __init__(self, max_tokens=1000):

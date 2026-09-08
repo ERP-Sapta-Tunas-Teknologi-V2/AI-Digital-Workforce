@@ -1,6 +1,6 @@
 import time
 
-from settings import EMBEDDING_MODEL
+from config import EMBEDDING_MODEL
 from rag.embeddings import embeddings, count_embedding_tokens
 from utils.supabase_client import supabase
 from utils.logger import log_index_usage

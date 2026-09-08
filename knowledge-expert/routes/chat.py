@@ -13,7 +13,7 @@ from utils.logger import log_query, log_chat_usage
 from session.manager import SessionManager
 from session.contextualizer import contextualize_question
 from utils.injection_patterns import INJECTION_PATTERNS
-from settings import OLLAMA_LLM
+from config import OLLAMA_LLM
 
 session_manager = SessionManager()
 

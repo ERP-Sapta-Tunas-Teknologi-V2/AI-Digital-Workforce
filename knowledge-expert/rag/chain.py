@@ -1,7 +1,7 @@
 from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
 
-from settings import OLLAMA_BASE_URL, OLLAMA_LLM
+from config import OLLAMA_BASE_URL, OLLAMA_LLM
 llm = ChatOllama(model=OLLAMA_LLM, base_url=OLLAMA_BASE_URL, temperature=0)
 
 prompt = ChatPromptTemplate.from_template("""

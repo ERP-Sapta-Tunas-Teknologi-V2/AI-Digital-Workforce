@@ -1,6 +1,6 @@
 from sentence_transformers import CrossEncoder
 
-from settings import RERANKER_MODEL
+from config import RERANKER_MODEL
 reranker = CrossEncoder(RERANKER_MODEL, max_length=8192)
 
 def rerank(question, documents, top_k=3):
