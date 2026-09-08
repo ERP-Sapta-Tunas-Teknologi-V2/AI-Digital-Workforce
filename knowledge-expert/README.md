@@ -42,6 +42,7 @@ API Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan m
 * Embedding: BGE-M3
 * Document processing: Docling
 * Response: Server-Sent Events (SSE)
+* Distributed lock: Redis
 
 ---
 
@@ -113,7 +114,10 @@ Supabase
 Ollama
 Qwen2.5
 BGE-M3
+Redis
 ```
+
+### Ollama
 
 Instal Ollama mengikuti dokumentasi resmi [Ollama Quickstart](https://docs.ollama.com/quickstart).
 
@@ -135,6 +139,55 @@ Verifikasi:
 
 ```bash
 ollama list
+```
+
+### Redis
+
+Redis digunakan sebagai distributed lock untuk mencegah proses `sync` dan `ingest` berjalan bersamaan (duplicate/race condition), termasuk saat aplikasi berjalan dengan lebih dari satu worker/process.
+
+#### Development (Windows):
+
+Redis tidak memiliki build resmi untuk Windows, sehingga dijalankan melalui WSL (Windows Subsystem for Linux).
+
+```bash
+# di dalam WSL
+sudo apt update
+sudo apt install -y redis-server
+sudo service redis-server start
+```
+
+Verifikasi Redis berjalan (masih di dalam WSL):
+
+```bash
+redis-cli ping
+# PONG
+```
+
+Karena Flask app berjalan di Windows sedangkan Redis berjalan di WSL, gunakan `REDIS_URL` yang mengarah ke `localhost` (WSL2 mem-forward port ke Windows secara otomatis):
+
+```env
+REDIS_URL=redis://localhost:6379/0
+```
+
+#### Production (Ubuntu):
+
+```bash
+sudo apt update
+sudo apt install -y redis-server
+sudo systemctl enable --now redis-server
+```
+
+Verifikasi:
+
+```bash
+redis-cli ping
+# PONG
+```
+
+`REDIS_URL` pada production tetap mengarah ke `localhost` selama Redis berjalan pada server yang sama dengan aplikasi:
+
+```env
+REDIS_URL=redis://localhost:6379/0
 ```
 
 ---
@@ -166,6 +219,7 @@ ollama list
 ├── utils/
 │   ├── anonymizer.py
 │   ├── extensions.py
+│   ├── locks.py
 │   ├── permissions.py
 │   ├── query_logger.py
 │   ├── supabase_admin.py
@@ -241,6 +295,8 @@ SUPABASE_SECRET_KEY=SECRET-KEY
 OLLAMA_BASE_URL=http://localhost:11434
 OLLAMA_LLM=qwen2.5
 EMBEDDING_MODEL=bge-m3
+
+REDIS_URL=redis://localhost:6379/0
 ```
 
 Nama variable harus disesuaikan dengan konfigurasi pada:
@@ -471,6 +527,16 @@ Response:
 
 Status code: `202 Accepted`.
 
+Jika ingest untuk file yang sama sedang berjalan, request akan ditolak dengan:
+
+```json
+{
+  "error": "ingest already running for 'example.pdf'"
+}
+```
+
+Status code: `409 Conflict`.
+
 ### Sync Endpoint
 
 Endpoint ini digunakan untuk melakukan sinkronisasi seluruh dokumen atau hanya satu category.
@@ -535,6 +601,18 @@ Status code: `202 Accepted`.
 Proses sync dijalankan secara asynchronous menggunakan background thread.
 
 Progress dan hasil proses tidak dikembalikan melalui endpoint ini. Gunakan log aplikasi untuk memantau status sinkronisasi.
+
+Jika sync untuk category (atau `all`) yang sama sedang berjalan, request akan ditolak dengan:
+
+```json
+{
+  "error": "sync already running for 'datasheet'"
+}
+```
+
+Status code: `409 Conflict`.
+
+Lock disimpan di Redis dengan TTL 3600 detik sebagai safety net apabila proses crash tanpa sempat melepas lock.
 
 ---
 
@@ -853,7 +931,9 @@ Jangan menggunakan Flask development server (`flask run` / `app.run(debug=True)`
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3 python3-venv python3-pip nginx git
+sudo apt install -y python3 python3-venv python3-pip nginx git redis-server
+sudo systemctl enable --now redis-server
+redis-cli ping
 ```
 
 ### 2. Install Ollama
@@ -972,6 +1052,7 @@ SUPABASE_SECRET_KEY
 OLLAMA_BASE_URL
 OLLAMA_LLM
 EMBEDDING_MODEL
+REDIS_URL
 ```
 
 Debug mode harus dinonaktifkan:

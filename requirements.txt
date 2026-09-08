@@ -8,6 +8,7 @@ langchain_ollama==1.1.0
 pymupdf==1.28.2
 pymupdf4llm==1.28.2
 python-dotenv==1.2.3
+redis==8.1.0
 Requests==2.34.2
 sentence_transformers==6.0.0
 supabase==2.31.0
