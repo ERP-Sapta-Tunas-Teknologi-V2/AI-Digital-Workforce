@@ -449,3 +449,27 @@ create index if not exists idx_budget_alerts_id on public.budget_alerts(id);
 
 grant insert, select on public.budget_alerts to service_role;
 grant usage, select on all sequences in schema public to service_role;
+
+create table if not exists public.document_status (
+    document_id text primary key,
+    source text not null,
+    category text not null,
+    status text not null default 'pending',
+    detail text,
+    last_ingested_at timestamptz,
+    created_at timestamptz default now()
+);
+
+create index if not exists idx_document_status_category on public.document_status(category);
+create index if not exists idx_document_status_status on public.document_status(status);
+
+grant select, insert, update on public.document_status to service_role;
+grant usage, select on all sequences in schema public to service_role;
+
+alter table public.document_status enable row level security;
+
+create policy "Allow service_role all on document_status" on public.document_status
+for all
+to service_role
+using (true)
+with check (true);
