@@ -111,19 +111,27 @@ def add_documents(chunks):
         }
 
     document_id = chunks[0].metadata["document_id"]
+
+    invalid_ids = {
+        chunk.metadata["document_id"]
+        for chunk in chunks
+        if chunk.metadata["document_id"] != document_id
+    }
+
+    if invalid_ids:
+        raise ValueError(
+            f"All chunks must belong to the same document. "
+            f"Expected '{document_id}', found: {sorted(invalid_ids)}"
+        )
+
     pending = []
 
     for chunk in chunks:
         metadata = chunk.metadata.copy()
 
-        chunk_document_id = metadata.pop("document_id")
+        metadata.pop("document_id")
         chunk_index = metadata.pop("chunk_index")
         fingerprint = metadata.pop("fingerprint")
-
-        if chunk_document_id != document_id:
-            raise ValueError(
-                "All chunks must belong to the same document."
-            )
 
         existing = (
             supabase
