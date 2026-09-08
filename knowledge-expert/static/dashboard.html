@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Document Dashboard</title>
+    <link rel="stylesheet" href="/static/dashboard.css">
+</head>
+<body>
+
+<div class="container">
+    <header>
+        <div>
+            <h1>Document Dashboard</h1>
+            <p>Kelola dokumen Knowledge Base</p>
+        </div>
+        <a href="/" class="chat-link">Chatbot</a>
+    </header>
+
+    <section class="card">
+        <h2>Upload Dokumen</h2>
+
+        <form id="upload-form">
+            <div class="form-row">
+                <div class="field">
+                    <label>File</label>
+                    <input
+                        type="file"
+                        id="file"
+                        accept=".pdf,.docx,.xlsx"
+                        required
+                    >
+                </div>
+
+                <div class="field">
+                    <label>Kategori</label>
+                    <select id="category" required>
+                        <option value="">Pilih kategori</option>
+                        <option value="sop">SOP</option>
+                        <option value="datasheet">Datasheet</option>
+                        <option value="pricelist">Pricelist</option>
+                    </select>
+                </div>
+
+                <button type="submit" id="upload-button">
+                    Upload
+                </button>
+            </div>
+        </form>
+
+        <div id="upload-message"></div>
+    </section>
+
+    <section class="card">
+        <div class="toolbar">
+            <div>
+                <h2>Dokumen</h2>
+                <span id="document-count">0 dokumen</span>
+            </div>
+
+            <div class="filters">
+                <select id="filter-category">
+                    <option value="">Semua kategori</option>
+                    <option value="sop">SOP</option>
+                    <option value="datasheet">Datasheet</option>
+                    <option value="pricelist">Pricelist</option>
+                </select>
+
+                <button id="refresh-button">
+                    Refresh
+                </button>
+            </div>
+        </div>
+
+        <div class="table-wrapper">
+            <table>
+                <thead>
+                    <tr>
+                        <th>Dokumen</th>
+                        <th>Kategori</th>
+                        <th>Ukuran</th>
+                        <th>Upload</th>
+                        <th>Status Ingest</th>
+                        <th>Ingest Terakhir</th>
+                        <th>Aksi</th>
+                    </tr>
+                </thead>
+                <tbody id="documents"></tbody>
+            </table>
+        </div>
+
+        <div id="empty" class="empty">
+            Tidak ada dokumen.
+        </div>
+    </section>
+</div>
+
+<script src="/static/dashboard.js"></script>
+</body>
+</html>

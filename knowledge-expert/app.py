@@ -25,6 +25,10 @@ def create_app():
     def index():
         return send_from_directory("static", "index.html")
 
+    @app.route("/dashboard")
+    def dashboard():
+        return send_from_directory("static", "dashboard.html")
+
     @app.errorhandler(429)
     def handle_rate_limit(e):
         return jsonify({
