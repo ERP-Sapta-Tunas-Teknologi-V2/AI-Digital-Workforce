@@ -415,13 +415,11 @@ supabase.sql
 
 Pastikan tabel dan function berhasil dibuat.
 
-Tabel utama:
+### Tabel
 
-```text
-documents
-```
+#### `documents`
 
-Struktur utama:
+Menyimpan chunk hasil indexing beserta embedding-nya. Digunakan untuk retrieval (`match_documents`, `hybrid_search`).
 
 | Column        | Type         | Description            |
 | ------------- | ------------ | ---------------------- |
@@ -434,11 +432,35 @@ Struktur utama:
 | `embedding`   | vector(1024) | BGE-M3 embedding       |
 | `fts`         | tsvector     | Full-text search index |
 
-Function utama:
+#### `query_logs`
+
+Mencatat setiap pertanyaan user (setelah anonymization) untuk keperluan analytics seperti Top FAQ. Setiap log terikat pada `anon_id`, bukan identitas user asli.
+
+#### `chat_usage_logs`
+
+Mencatat biaya dan token usage per request chat (embedding + LLM), digunakan untuk laporan cost harian/mingguan dan monitoring budget.
+
+#### `index_usage_logs`
+
+Mencatat biaya dan token usage embedding pada proses indexing dokumen, terpisah dari usage saat chat.
+
+#### `budget_alerts`
+
+Menyimpan histori alert saat penggunaan budget (harian/mingguan) melewati threshold tertentu. Kombinasi `period_type`, `period_date`, dan `alert_type` bersifat unik agar alert yang sama tidak tercatat berulang.
+
+#### `document_status`
+
+Melacak status ingest/sync setiap dokumen (`pending`, `success`, `failed`, dsb) berdasarkan `document_id`, termasuk waktu terakhir diproses (`last_ingested_at`).
+
+### Function
 
 ```text
 match_documents()
 hybrid_search()
+get_top_faq()
+get_daily_cost_report()
+get_weekly_cost_report()
+delete_expired_query_logs()
 ```
 
 ---
