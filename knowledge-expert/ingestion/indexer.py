@@ -1,4 +1,3 @@
-# Memasukkan dokumen ke Supabase
 from pathlib import Path
 from datetime import datetime
 
@@ -19,7 +18,7 @@ def index_document(file_path: str):
 
     if path.suffix.lower() in {".docx", ".pdf"}:
         print(f'Cleaning document...')
-        markdown = preprocessing(path, document_id)
+        markdown = preprocessing(path)
         print("Cleaned.")
 
         print(f"Loading document...")

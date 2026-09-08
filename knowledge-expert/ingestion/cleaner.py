@@ -1,13 +1,47 @@
-from docx2pdf import convert
 import pymupdf
 import pymupdf4llm
 import re
 import tempfile
 from pathlib import Path
+import subprocess
+import platform
+
+def _get_libreoffice_command():
+    if platform.system() == "Windows":
+        return r"C:\Program Files\LibreOffice\program\soffice.exe"
+    return "libreoffice"
 
 def docx_to_pdf(docx_path, pdf_path):
     print("Converting .docx to .pdf")
-    convert(docx_path, pdf_path)
+    output_dir = pdf_path.parent
+
+    with tempfile.TemporaryDirectory() as profile_dir:
+        profile_uri = Path(profile_dir).as_uri()
+
+        result = subprocess.run(
+            [
+                _get_libreoffice_command(),
+                "--headless",
+                f"-env:UserInstallation={profile_uri}",
+                "--convert-to", "pdf",
+                "--outdir", str(output_dir),
+                str(docx_path)
+            ],
+            capture_output=True,
+            text=True,
+            timeout=120
+        )
+
+    if result.returncode != 0:
+        raise RuntimeError(f"LibreOffice conversion failed: {result.stderr}")
+
+    generated_pdf = output_dir / f"{docx_path.stem}.pdf"
+
+    if not generated_pdf.exists():
+        raise RuntimeError(f"Expected output not found: {generated_pdf}")
+
+    if generated_pdf != pdf_path:
+        generated_pdf.rename(pdf_path)
 
 def pdf_to_md(pdf_path):
     print("Converting .pdf to .md")
@@ -26,10 +60,10 @@ def clean_md(markdown):
     markdown = markdown.replace("`", "")  # Remove `
     return markdown
 
-def preprocessing(path, document_id):
+def preprocessing(path):
     if path.suffix.lower() == ".docx":
         with tempfile.TemporaryDirectory() as temp_dir:
-            pdf_path = Path(temp_dir) / f"{document_id}.pdf"
+            pdf_path = Path(temp_dir) / f"{path.stem}.pdf"
             docx_to_pdf(path, pdf_path)
             pages = pdf_to_md(pdf_path)
 

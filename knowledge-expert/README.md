@@ -106,8 +106,6 @@ SSE
 
 ## Requirements
 
-Minimal:
-
 ```text
 Python 3.x
 Supabase
@@ -115,6 +113,7 @@ Ollama
 Qwen2.5
 BGE-M3
 Redis
+LibreOffice
 ```
 
 ### Ollama
@@ -189,6 +188,45 @@ redis-cli ping
 ```env
 REDIS_URL=redis://localhost:6379/0
 ```
+
+### LibreOffice
+
+LibreOffice digunakan untuk konversi `.docx` ke `.pdf` sebelum diproses menjadi markdown (`ingestion/cleaner.py`). Konversi dijalankan headless melalui `subprocess`, bukan library Python.
+
+#### Development (Windows):
+
+Download dan install LibreOffice dari [libreoffice.org](https://www.libreoffice.org/download/download/) menggunakan installer default.
+
+Path executable pada Windows diasumsikan berada pada:
+
+```text
+C:\Program Files\LibreOffice\program\soffice.exe
+```
+
+Jika LibreOffice diinstall pada path lain, sesuaikan path tersebut pada `ingestion/cleaner.py` (fungsi `_get_libreoffice_command`).
+
+Verifikasi (PowerShell atau CMD):
+
+```powershell
+& "C:\Program Files\LibreOffice\program\soffice.exe" --version
+```
+
+#### Production (Ubuntu):
+
+```bash
+sudo apt update
+sudo apt install -y libreoffice
+```
+
+Pada Ubuntu, command `libreoffice` diasumsikan sudah tersedia di `PATH` sehingga tidak perlu path executable eksplisit.
+
+Verifikasi:
+
+```bash
+libreoffice --version
+```
+
+Konversi `.docx` ke `.pdf` menggunakan mode `--headless`, sehingga tidak memerlukan display/GUI dan aman dijalankan pada server tanpa desktop environment.
 
 ---
 
@@ -931,9 +969,10 @@ Jangan menggunakan Flask development server (`flask run` / `app.run(debug=True)`
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3 python3-venv python3-pip nginx git redis-server
+sudo apt install -y python3 python3-venv python3-pip nginx git redis-server libreoffice
 sudo systemctl enable --now redis-server
 redis-cli ping
+libreoffice --version
 ```
 
 ### 2. Install Ollama
