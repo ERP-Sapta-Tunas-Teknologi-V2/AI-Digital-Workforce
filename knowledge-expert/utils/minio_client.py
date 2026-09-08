@@ -51,3 +51,9 @@ def list_files(category: str = None):
 def download_path(category: str, filename: str) -> str:
     """Return local temp path for pipeline use if needed, or object path for reference."""
     return object_key(category, filename)
+
+def delete_file(category: str, filename: str):
+    client.remove_object(
+        config.MINIO_BUCKET,
+        object_key(category, filename)
+    )

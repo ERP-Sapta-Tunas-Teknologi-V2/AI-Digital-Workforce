@@ -4,9 +4,10 @@ from flask import Blueprint, request, jsonify
 
 from utils.permissions import require_role
 from utils.locks import try_acquire, release, is_locked
-from utils.minio_client import file_exists, upload_file, list_files
-from utils.status_tracker import get_all_statuses
+from utils.minio_client import file_exists, upload_file, list_files, delete_file
+from utils.status_tracker import get_all_statuses, delete_status
 from ingestion.indexer import index_document
+from ingestion.vectorstore import delete_document
 from sync.sync import sync_documents, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
 
 admin_bp = Blueprint("admin", __name__)
@@ -158,6 +159,76 @@ def documents():
         f["last_ingested_at_wib"] = _to_wib(f["last_ingested_at"]) if status_entry else None
 
     return jsonify(files)
+
+@admin_bp.route("/un-ingest", methods=["POST"])
+# @require_role("Admin")
+def un_ingest():
+    data = request.get_json(silent=True) or {}
+
+    category = data.get("category")
+    filename = data.get("filename")
+
+    if not category or category not in ALLOWED_CATEGORIES:
+        return jsonify({"error": "invalid category"}), 400
+
+    if not filename or not isinstance(filename, str):
+        return jsonify({"error": "filename is required"}), 400
+
+    document_id = f"{category}:{Path(filename).stem}"
+
+    try:
+        delete_document(document_id)
+        delete_status(document_id)
+
+        return jsonify({
+            "message": "Document un-ingested successfully",
+            "document_id": document_id
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
+
+@admin_bp.route("/documents/delete", methods=["DELETE"])
+# @require_role("Admin")
+def delete_document_endpoint():
+    data = request.get_json(silent=True) or {}
+
+    category = data.get("category")
+    filename = data.get("filename")
+
+    if not category or category not in ALLOWED_CATEGORIES:
+        return jsonify({"error": "invalid category"}), 400
+
+    if not filename or not isinstance(filename, str):
+        return jsonify({"error": "filename is required"}), 400
+
+    if not file_exists(category, filename):
+        return jsonify({"error": "file not found in storage"}), 404
+
+    document_id = f"{category}:{Path(filename).stem}"
+
+    try:
+        # Hapus vector database
+        delete_document(document_id)
+
+        # Hapus status ingest
+        delete_status(document_id)
+
+        # Hapus file MinIO
+        delete_file(category, filename)
+
+        return jsonify({
+            "message": "Document deleted successfully",
+            "category": category,
+            "filename": filename
+        }), 200
+
+    except Exception as e:
+        return jsonify({
+            "error": str(e)
+        }), 500
 
 def _to_wib(iso_timestamp):
     if not iso_timestamp:

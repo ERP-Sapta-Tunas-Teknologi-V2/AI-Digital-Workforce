@@ -23,3 +23,12 @@ def get_all_statuses():
         .execute()
     )
     return result.data or []
+
+def delete_status(document_id: str):
+    (
+        supabase
+        .table("document_status")
+        .delete()
+        .eq("document_id", document_id)
+        .execute()
+    )

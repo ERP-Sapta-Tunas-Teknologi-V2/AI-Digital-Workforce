@@ -103,6 +103,32 @@ Qwen2.5
 SSE
 ```
 
+Pipeline document management:
+
+```text
+User
+   ↓
+Dashboard
+   ↓
+Upload
+   ↓
+MinIO
+   ↓
+Select Category
+   ↓
+{category}/{filename}
+   ↓
+Ingest
+   ↓
+Preprocessing
+   ↓
+Chunking
+   ↓
+Embedding
+   ↓
+Supabase / pgvector
+```
+
 ---
 
 ## Requirements
@@ -330,6 +356,13 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 │   ├── status_tracker.py
 │   ├── supabase_admin.py
 │   └── supabase_client.py
+├── static/
+│   ├── index.html
+│   ├── chat.js
+│   ├── style.css
+│   ├── dashboard.html
+│   ├── dashboard.js
+│   └── dashboard.css
 ├── tests/
 ├── log/
 ├── docs/
@@ -589,6 +622,14 @@ Format dokumen yang didukung:
 .xlsx
 ```
 
+Sinkronisasi tersedia melalui endpoint:
+
+```http
+POST /api/admin/sync
+```
+
+Tidak terdapat proses sync manual melalui command `python`. Operasional sinkronisasi dilakukan melalui API.
+
 Status dokumen:
 
 ```text
@@ -606,6 +647,15 @@ Contoh output:
 Dokumen `New` dan `Existing` akan diproses melalui indexing. Fingerprint digunakan untuk melewati chunk yang tidak mengalami perubahan.
 
 Dokumen yang sudah tidak terdapat pada source akan dihapus dari vector database berdasarkan `document_id`.
+
+Untuk operasi individual, gunakan Dashboard Dokumen:
+
+```text
+Upload
+Ingest
+Un-ingest
+Delete
+```
 
 ---
 
@@ -754,6 +804,157 @@ Jika ingest untuk file yang sama sedang berjalan, request akan ditolak dengan:
 
 Status code: `409 Conflict`.
 
+### Un-ingest Endpoint
+
+Endpoint ini menghapus hasil indexing dokumen dari Supabase/pgvector tanpa menghapus file dari MinIO.
+
+```http
+POST /api/admin/un-ingest
+Content-Type: application/json
+````
+
+Body:
+
+```json
+{
+  "category": "datasheet",
+  "filename": "example.pdf"
+}
+```
+
+Proses:
+
+```text
+Vector chunks
+   ↓
+DELETE
+
+document_status
+   ↓
+DELETE
+
+MinIO
+   ↓
+tetap
+```
+
+Response:
+
+```json
+{
+  "message": "Document un-ingested successfully",
+  "document_id": "datasheet:example"
+}
+```
+
+Status code:
+
+```text
+200 OK
+```
+
+### Delete Document Endpoint
+
+Endpoint ini menghapus file dari MinIO dan hasil indexing dari Supabase/pgvector.
+
+```http
+DELETE /api/admin/documents/delete
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "category": "datasheet",
+  "filename": "example.pdf"
+}
+```
+
+Proses:
+
+```text
+Supabase / pgvector
+   ↓
+DELETE vectors
+
+document_status
+   ↓
+DELETE status
+
+MinIO
+   ↓
+DELETE file
+```
+
+Response:
+
+```json
+{
+  "message": "Document deleted successfully",
+  "category": "datasheet",
+  "filename": "example.pdf"
+}
+```
+
+Status code:
+
+```text
+200 OK
+```
+
+Jika file tidak ditemukan di MinIO:
+
+```text
+404 Not Found
+```
+
+### Document Lifecycle
+
+Lifecycle dokumen:
+
+```text
+                    Upload
+                       │
+                       ▼
+                     MinIO
+                       │
+                       ▼
+                 not_ingested
+                       │
+                       │ Ingest
+                       ▼
+                   processing
+                    /       \
+                   /         \
+                  ▼           ▼
+              success       failed
+                  │
+                  │
+            Un-ingest
+                  │
+                  ▼
+             not_ingested
+```
+
+Delete dari dashboard:
+
+```text
+             MinIO
+                │
+                ▼
+             DELETE
+                │
+                ├──────────────┐
+                ▼              ▼
+       Supabase / pgvector   document_status
+                │              │
+                ▼              ▼
+              DELETE         DELETE
+```
+
+File yang dihapus dari MinIO tidak boleh tetap memiliki vector representation di Supabase/pgvector.
+
 ### Sync Endpoint
 
 Endpoint ini digunakan untuk melakukan sinkronisasi seluruh dokumen atau hanya satu category.
@@ -830,6 +1031,251 @@ Jika sync untuk category (atau `all`) yang sama sedang berjalan, request akan di
 Status code: `409 Conflict`.
 
 Lock disimpan di Redis dengan TTL 3600 detik sebagai safety net apabila proses crash tanpa sempat melepas lock.
+
+---
+
+## Dashboard Dokumen
+
+Dashboard dokumen digunakan oleh Admin untuk mengelola file knowledge base yang tersimpan di MinIO dan mengatur proses indexing ke Supabase/pgvector.
+
+Dashboard tersedia pada:
+
+```text
+/dashboard
+````
+
+Frontend dashboard menggunakan Vanilla HTML, CSS, dan JavaScript.
+
+### Upload Dokumen
+
+User dapat:
+
+1. Memilih file.
+2. Memilih category.
+3. Mengupload file.
+4. File disimpan ke MinIO menggunakan struktur:
+
+```text
+knowledge-expert/
+├── sop/
+│   └── example.pdf
+├── datasheet/
+│   └── product.pdf
+└── pricelist/
+    └── price.xlsx
+```
+
+Format file yang didukung:
+
+```text
+.pdf
+.docx
+.xlsx
+```
+
+Category yang digunakan:
+
+```text
+sop
+datasheet
+pricelist
+```
+
+Jika file dengan nama dan category yang sama sudah ada di MinIO, dashboard meminta konfirmasi sebelum melakukan replace.
+
+### Daftar Dokumen
+
+Dashboard menampilkan:
+
+```text
+Filename
+Category
+Size
+Upload time
+Ingest status
+Last ingest time
+Action
+```
+
+Waktu ditampilkan dalam zona waktu:
+
+```text
+WIB (UTC+7)
+```
+
+Status ingest:
+
+```text
+not_ingested
+processing
+success
+failed
+```
+
+Contoh:
+
+```text
+example.pdf
+Category       : datasheet
+Uploaded       : 2026-09-08 09:30:00 WIB
+Status         : success
+Last ingested  : 2026-09-08 09:35:00 WIB
+```
+
+Status berasal dari tabel `document_status` pada Supabase.
+
+### Ingest Dokumen
+
+Dokumen yang sudah tersimpan di MinIO dapat di-ingest secara individual melalui dashboard.
+
+Flow:
+
+```text
+MinIO
+   ↓
+Ingest
+   ↓
+Download temporary file
+   ↓
+Preprocessing
+   ↓
+Document Loader
+   ↓
+StructureAwareChunker
+   ↓
+Fingerprint
+   ↓
+BGE-M3
+   ↓
+Supabase / pgvector
+```
+
+Ingest dijalankan secara asynchronous menggunakan background thread.
+
+Status akan berubah:
+
+```text
+not_ingested
+      ↓
+processing
+      ↓
+success
+```
+
+Jika terjadi error:
+
+```text
+processing
+      ↓
+failed
+```
+
+Dashboard melakukan refresh status secara berkala sehingga perubahan status ingest dapat terlihat tanpa menjalankan command manual.
+
+### Un-ingest Dokumen
+
+Un-ingest digunakan untuk menghapus hasil indexing tanpa menghapus file sumber dari MinIO.
+
+```text
+Un-ingest
+
+MinIO
+   ↓
+File tetap ada
+
+Supabase / pgvector
+   ↓
+Vector chunks dihapus
+
+document_status
+   ↓
+Status dihapus
+```
+
+Setelah un-ingest, dokumen kembali berstatus:
+
+```text
+not_ingested
+```
+
+File tetap tersedia di MinIO dan dapat di-ingest kembali.
+
+### Hapus Dokumen
+
+Hapus dokumen digunakan untuk menghapus file sumber dan seluruh data indexing-nya.
+
+```text
+Delete
+
+MinIO
+   ↓
+File dihapus
+
+Supabase / pgvector
+   ↓
+Vector chunks dihapus
+
+document_status
+   ↓
+Status dihapus
+```
+
+Dengan demikian tidak terdapat dokumen vector yang berasal dari file yang sudah tidak tersedia di MinIO.
+
+### Replace Dokumen
+
+Jika user mengupload file dengan nama yang sama pada category yang sama, dashboard akan meminta konfirmasi replace.
+
+Proses replace harus menghapus hasil indexing lama sebelum file baru digunakan:
+
+```text
+Existing file
+      ↓
+Delete old vectors
+      ↓
+Delete old document status
+      ↓
+Replace file in MinIO
+      ↓
+not_ingested
+      ↓
+Ingest new file
+```
+
+Hal ini mencegah vector dari versi lama dan versi baru berada bersamaan di vector database.
+
+### Endpoint Dashboard
+
+| Method   | Endpoint                      | Fungsi                            |
+| -------- | ----------------------------- | --------------------------------- |
+| `POST`   | `/api/admin/documents/upload` | Upload atau replace file          |
+| `GET`    | `/api/admin/documents`        | Menampilkan daftar dokumen        |
+| `POST`   | `/api/admin/ingest`           | Ingest dokumen                    |
+| `POST`   | `/api/admin/un-ingest`        | Menghapus hasil indexing          |
+| `DELETE` | `/api/admin/documents/delete` | Menghapus file dan hasil indexing |
+
+Semua endpoint membutuhkan role:
+
+```text
+Admin
+```
+
+### Source of Truth
+
+Arsitektur document management menggunakan pembagian tanggung jawab:
+
+```text
+MinIO
+  = Source document
+
+Supabase / pgvector
+  = Indexed representation
+
+document_status
+  = Ingestion state
+```
+
+MinIO menyimpan file asli, sedangkan Supabase/pgvector menyimpan chunk dan embedding yang digunakan oleh sistem retrieval.
 
 ---
 
@@ -1337,51 +1783,65 @@ Dokumentasi detail tersedia di directory [`docs/`](docs):
 ## Project Flow
 
 ```text
-                    INDEXING
-                       │
-                       ▼
-                  Document
-                       │
-                       ▼
-                Preprocessing
-                       │
-                       ▼
-               StructureAwareChunker
-                       │
-                       ▼
-                  Fingerprint
-                       │
-                       ▼
-                    BGE-M3
-                       │
-                       ▼
-                Supabase/pgvector
-                       │
-                       │
-                       ▼
-                    RUNTIME
-                       │
-                       ▼
-                  User Request
-                       │
-                       ▼
-                     Session
-                       │
-                       ▼
-                 Contextualizer
-                       │
-                       ▼
+                    DOCUMENT MANAGEMENT
+                           │
+                           ▼
+                      Dashboard
+                           │
+                    ┌──────┴──────┐
+                    │             │
+                  Upload        Delete
+                    │             │
+                    ▼             ▼
+                  MinIO        MinIO
+                    │
+                    │ Ingest
+                    ▼
+                 Download
+                    │
+                    ▼
+               Preprocessing
+                    │
+                    ▼
+            StructureAwareChunker
+                    │
+                    ▼
+                Fingerprint
+                    │
+                    ▼
                   BGE-M3
-                       │
-                       ▼
-                 Hybrid Search
-                       │
-                       ▼
-                   Qwen2.5
-                       │
-                       ▼
-                      SSE
-                       │
-                       ▼
-                   Frontend
+                    │
+                    ▼
+              Supabase/pgvector
+                    │
+                    ▼
+              document_status
+                    │
+                    │
+                    ▼
+                   RUNTIME
+                    │
+                    ▼
+                User Request
+                    │
+                    ▼
+                  Session
+                    │
+                    ▼
+              Contextualizer
+                    │
+                    ▼
+                 BGE-M3
+                    │
+                    ▼
+               Hybrid Search
+                    │
+                    ▼
+                 Qwen2.5
+                    │
+                    ▼
+                    SSE
+                    │
+                    ▼
+                 Frontend
 ```

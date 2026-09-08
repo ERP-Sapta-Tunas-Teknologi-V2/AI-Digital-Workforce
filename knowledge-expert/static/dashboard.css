@@ -234,3 +234,19 @@ th {
         flex: 1;
     }
 }
+
+.un-ingest-button,
+.delete-button {
+    height: 34px;
+    padding: 0 12px;
+    font-size: 12px;
+    margin-left: 4px;
+}
+
+.un-ingest-button {
+    background: #777;
+}
+
+.delete-button {
+    background: #b42318;
+}

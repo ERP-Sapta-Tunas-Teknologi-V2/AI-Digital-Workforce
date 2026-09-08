@@ -106,11 +106,36 @@ function renderDocuments() {
             <td>
                 <button
                     class="ingest-button"
+                    data-action="ingest"
                     data-category="${escapeAttr(doc.category)}"
                     data-filename="${escapeAttr(doc.filename)}"
-                    ${ingestDisabled ? "disabled" : ""}
+                    ${doc.ingest_status === "processing" ? "disabled" : ""}
                 >
-                    ${ingestDisabled ? "Processing..." : "Ingest"}
+                    ${doc.ingest_status === "processing" ? "Processing..." : "Ingest"}
+                </button>
+
+                ${
+                    doc.ingest_status !== "not_ingested"
+                    ? `
+                    <button
+                        class="un-ingest-button"
+                        data-action="un-ingest"
+                        data-category="${escapeAttr(doc.category)}"
+                        data-filename="${escapeAttr(doc.filename)}"
+                    >
+                        Un-ingest
+                    </button>
+                    `
+                    : ""
+                }
+
+                <button
+                    class="delete-button"
+                    data-action="delete"
+                    data-category="${escapeAttr(doc.category)}"
+                    data-filename="${escapeAttr(doc.filename)}"
+                >
+                    Hapus
                 </button>
             </td>
         `;
@@ -196,28 +221,34 @@ async function uploadFile(file, category, replace) {
 }
 
 documentsEl.addEventListener("click", async event => {
-    const button = event.target.closest(".ingest-button");
+    const button = event.target.closest("button");
 
-    if (!button) {
-        return;
-    }
+    if (!button) return;
 
+    const action = button.dataset.action;
     const category = button.dataset.category;
     const filename = button.dataset.filename;
 
-    const confirmed = confirm(
-        `Ingest "${filename}" ke vector database?`
-    );
+    if (action === "ingest") {
+        await ingestDocument(category, filename);
+    }
 
-    if (!confirmed) {
+    if (action === "un-ingest") {
+        await unIngestDocument(category, filename);
+    }
+
+    if (action === "delete") {
+        await deleteDocument(category, filename);
+    }
+});
+
+async function ingestDocument(category, filename) {
+    if (!confirm(`Ingest "${filename}" ke vector database?`)) {
         return;
     }
 
     try {
-        button.disabled = true;
-        button.textContent = "Starting...";
-
-        const data = await api("/api/admin/ingest", {
+        await api("/api/admin/ingest", {
             method: "POST",
             headers: {
                 "Content-Type": "application/json"
@@ -229,14 +260,62 @@ documentsEl.addEventListener("click", async event => {
         });
 
         await loadDocuments();
-
-        alert(data.message);
-
     } catch (error) {
         alert(error.message);
-        await loadDocuments();
     }
-});
+}
+
+async function unIngestDocument(category, filename) {
+    if (!confirm(
+        `Un-ingest "${filename}"?\n\n` +
+        `File tetap ada di MinIO, tetapi data vector akan dihapus.`
+    )) {
+        return;
+    }
+
+    try {
+        await api("/api/admin/un-ingest", {
+            method: "POST",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                category,
+                filename
+            })
+        });
+
+        await loadDocuments();
+    } catch (error) {
+        alert(error.message);
+    }
+}
+
+async function deleteDocument(category, filename) {
+    if (!confirm(
+        `Hapus "${filename}"?\n\n` +
+        `File MinIO dan data vector Supabase akan dihapus.`
+    )) {
+        return;
+    }
+
+    try {
+        await api("/api/admin/documents/delete", {
+            method: "DELETE",
+            headers: {
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                category,
+                filename
+            })
+        });
+
+        await loadDocuments();
+    } catch (error) {
+        alert(error.message);
+    }
+}
 
 filterCategory.addEventListener("change", loadDocuments);
 refreshButton.addEventListener("click", loadDocuments);

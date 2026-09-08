@@ -127,6 +127,7 @@ $$;
 
 grant usage, select on sequence public.documents_id_seq to anon;
 grant select, insert, update, delete on public.documents to anon;
+grant delete on public.document_status to service_role;
 
 alter table public.documents enable row level security;
 
