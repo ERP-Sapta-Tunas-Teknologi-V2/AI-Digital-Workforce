@@ -606,10 +606,14 @@ flask run --debug
 
 ## Indexing Dokumen
 
-Dokumen yang dapat di-index adalah:
+Format dokumen yang didukung:
 
-- `.pdf`
-- `.docx`
+```text
+.docx
+.pdf
+.xlsx
+.pptx
+```
 
 Dokumen diproses melalui:
 
@@ -651,14 +655,6 @@ knowledge-expert/
 ```
 
 Setiap kategori merupakan prefix folder pada bucket MinIO, bukan direktori filesystem lokal.
-
-Format dokumen yang didukung:
-
-```text
-.docx
-.pdf
-.xlsx
-```
 
 Sinkronisasi tersedia melalui endpoint:
 
@@ -721,14 +717,6 @@ Form fields:
 | `file`     | ya       | File yang diupload                            |
 | `category` | ya       | Salah satu dari `sop`, `datasheet`, `pricelist` |
 | `replace`  | tidak    | `true` untuk menimpa file yang sudah ada      |
-
-Format file yang didukung:
-
-```text
-.pdf
-.docx
-.xlsx
-```
 
 Jika file dengan nama yang sama sudah ada di kategori tersebut dan `replace` tidak dikirim (atau `false`), response:
 
@@ -810,14 +798,6 @@ Body:
 ```
 
 File harus sudah tersimpan di MinIO pada bucket dan kategori yang bersangkutan (lihat [Document Endpoints](#document-endpoints)). Jika file tidak ditemukan di storage, response `404 Not Found`.
-
-Format file yang didukung:
-
-```text
-.docx
-.pdf
-.xlsx
-```
 
 Proses indexing dijalankan secara asynchronous menggunakan background thread.
 
@@ -1069,14 +1049,6 @@ knowledge-expert/
 │   └── product.pdf
 └── pricelist/
     └── price.xlsx
-```
-
-Format file yang didukung:
-
-```text
-.pdf
-.docx
-.xlsx
 ```
 
 Category yang digunakan:

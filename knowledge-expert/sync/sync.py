@@ -7,7 +7,7 @@ from ingestion.indexer import index_document
 from ingestion.vectorstore import get_document_ids, delete_document
 
 SOURCE_DIR = Path("documents")
-SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".xlsx"}
+SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".xlsx", ".pptx"}
 ALLOWED_CATEGORIES = {"sop", "datasheet", "pricelist", "guide", "meeting", "training"}
 
 def sync_documents(category=None):
