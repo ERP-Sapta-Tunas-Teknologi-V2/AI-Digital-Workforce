@@ -8,7 +8,7 @@ from utils.supabase_client import supabase
 from utils.anonymizer import anonymize_query
 from config import EMBEDDING_MODEL
 
-# RERANK_THRESHOLD = 3.0
+RERANK_THRESHOLD = 0.0
 
 STT_WORDS = {"stt", "sapta", "tunas", "teknologi"}
 STT_GROUP = "(stt|sapta<->tunas<->teknologi)"
@@ -29,7 +29,7 @@ def expand_query(query):
 def hybrid_retrieve(
     question: str,
     request_id: str,
-    candidate_k: int = 5,
+    candidate_k: int = 10,
     rerank_k: int = 3
 ) -> tuple[list[Document], str, int]:
 
@@ -65,30 +65,32 @@ def hybrid_retrieve(
     for row in result.data or []:
         metadata = row.get("metadata") or {}
         metadata["retrieval_score"] = row["hybrid_score"]
+        metadata["chunk_index"] = row.get("chunk_index")
+        metadata["content"] = row.get("content")
 
         document = Document(page_content=row["content"], metadata=metadata)
         documents.append(document)
 
-    # rerank_start = time.perf_counter()
+    rerank_start = time.perf_counter()
 
-    # all_scored = rerank(question, documents, top_k=len(documents))
-    # with open("log/log_retrieval-docs.txt", "a", encoding="utf-8") as f:
-    #     f.write("\n\n=== RERANK SCORES (ALL) ===\n")
-    #     for document in all_scored:
-    #         f.write(
-    #             f"score={document.metadata['rerank_score']:.4f} | "
-    #             f"section={document.metadata.get('section_title')!r} | "
-    #             f"source={document.metadata.get('source')} | "
-    #             f"page={document.metadata.get('page')}\n"
-    #         )
-    # documents = all_scored[:rerank_k]
+    all_scored = rerank(question, documents, top_k=len(documents))
+    with open("log/log_retrieval-docs.txt", "a", encoding="utf-8") as f:
+        f.write("\n\n=== RERANK SCORES (ALL) ===\n")
+        for document in all_scored:
+            f.write(
+                f"score={document.metadata['rerank_score']:.4f} | "
+                f"section={document.metadata.get('section_title')!r} | "
+                f"source={document.metadata.get('source')} | "
+                f"page={document.metadata.get('page')}\n"
+            )
+    documents = all_scored[:rerank_k]
 
-    # rerank_time = time.perf_counter() - rerank_start
+    rerank_time = time.perf_counter() - rerank_start
 
     documents = [
         document
         for document in documents
-        # if document.metadata["rerank_score"] >= RERANK_THRESHOLD
+        if document.metadata["rerank_score"] >= RERANK_THRESHOLD
     ]
 
     context = "\n\n".join(document.page_content for document in documents)
@@ -101,8 +103,8 @@ def hybrid_retrieve(
         f"embedding={embedding_time:.3f}s | "
         f"embedding_tokens={embedding_tokens} | "
         f"search={search_time:.3f}s | "
-        # f"rerank={rerank_time:.3f}s | "
-        # f"threshold={RERANK_THRESHOLD:.4f} | "
+        f"rerank={rerank_time:.3f}s | "
+        f"threshold={RERANK_THRESHOLD:.4f} | "
         f"relevant={len(documents)} | "
         f"total={total_time:.3f}s\n"
     )

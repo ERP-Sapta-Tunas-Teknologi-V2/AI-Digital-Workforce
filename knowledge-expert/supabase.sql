@@ -53,6 +53,7 @@ returns table (
     id bigint,
     content text,
     metadata jsonb,
+    chunk_index int,
     embedding vector(1024),
     hybrid_score float
 )
@@ -116,6 +117,7 @@ as $$
         d.id,
         d.content,
         d.metadata,
+        d.chunk_index,
         d.embedding,
         fused.hybrid_score
     from fused
