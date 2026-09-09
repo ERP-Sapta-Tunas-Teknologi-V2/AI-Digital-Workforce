@@ -8,7 +8,7 @@ from ingestion.vectorstore import get_document_ids, delete_document
 
 SOURCE_DIR = Path("documents")
 SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".xlsx"}
-ALLOWED_CATEGORIES = {"sop", "datasheet", "pricelist"}
+ALLOWED_CATEGORIES = {"sop", "datasheet", "pricelist", "guide", "meeting", "training"}
 
 def sync_documents(category=None):
     categories = [category] if category else sorted(ALLOWED_CATEGORIES)

@@ -11,6 +11,15 @@ const countEl = document.getElementById("document-count");
 const filterCategory = document.getElementById("filter-category");
 const refreshButton = document.getElementById("refresh-button");
 
+const categoryMap = {
+    sop: "SOP",
+    datasheet: "Datasheet",
+    pricelist: "Pricelist",
+    guide: "Technical Guide",
+    meeting: "Meeting Notes",
+    training: "Training Material"
+};
+
 let documents = [];
 
 async function api(url, options = {}) {
@@ -85,7 +94,7 @@ function renderDocuments() {
                 <div class="path">${escapeHtml(doc.path)}</div>
             </td>
 
-            <td>${escapeHtml(doc.category)}</td>
+            <td>${escapeHtml(categoryMap[doc.category] ?? doc.category)}</td>
 
             <td>${formatSize(doc.size)}</td>
 

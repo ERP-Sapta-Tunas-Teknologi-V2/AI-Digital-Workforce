@@ -1,15 +1,56 @@
 from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
+import redis
+import requests
 
 from utils.extensions import limiter
 from utils.minio_client import ensure_bucket, client
 from routes.chat import chat_bp
 from routes.analytics import analytics_bp
 from routes.admin import admin_bp
+from config import OLLAMA_BASE_URL
 
 ALLOWED_ORIGINS = ["https://saptatunas.com"]
 
+REDIS_HOST = "localhost"
+REDIS_PORT = 6379
+
+def check_services():
+    print("[CHECK] Checking services...")
+
+    # MinIO
+    try:
+        client.list_buckets()
+        print("[OK] MinIO")
+    except Exception as e:
+        print(f"[ERROR] MinIO: {e}")
+        return False
+
+    # Redis
+    try:
+        r = redis.Redis(host=REDIS_HOST, port=REDIS_PORT)
+        r.ping()
+        print("[OK] Redis")
+    except Exception as e:
+        print(f"[ERROR] Redis: {e}")
+        return False
+
+    # Ollama
+    try:
+        response = requests.get(f"{OLLAMA_BASE_URL}/api/tags", timeout=3)
+        response.raise_for_status()
+        print("[OK] Ollama")
+    except Exception as e:
+        print(f"[ERROR] Ollama: {e}")
+        return False
+
+    print("[CHECK] All services are running")
+    return True
+
 def create_app():
+    if not check_services():
+        raise RuntimeError("Required services are not running")
+
     app = Flask(__name__)
     limiter.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": ALLOWED_ORIGINS}})

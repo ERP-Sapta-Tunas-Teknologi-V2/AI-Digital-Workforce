@@ -11,10 +11,10 @@ API Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan m
 * [Setup Supabase](#setup-supabase)
 * [Konfigurasi Environment](#konfigurasi-environment)
 * [Instalasi](#instalasi)
+* [Menjalankan Aplikasi](#menjalankan-aplikasi)
 * [Indexing Dokumen](#indexing-dokumen)
 * [Sinkronisasi Dokumen](#sinkronisasi-dokumen)
 * [Admin Endpoints](#admin-endpoints)
-* [Menjalankan API](#menjalankan-api)
 * [Testing](#testing)
 * [Retrieval](#retrieval)
 * [Session Management](#session-management)
@@ -275,6 +275,12 @@ docker run -d \
   -e "MINIO_ROOT_PASSWORD=password" \
   -v minio-data:/data \
   minio/minio server /data --console-address ":9001"
+```
+
+Jika container `minio` sudah pernah dibuat tetapi sedang berhenti, jalankan kembali dengan:
+
+```bash
+docker start minio
 ```
 
 Port `9000` digunakan untuk API, port `9001` untuk Console (dashboard web).
@@ -562,6 +568,38 @@ get_top_faq()
 get_daily_cost_report()
 get_weekly_cost_report()
 delete_expired_query_logs()
+```
+
+---
+
+## Menjalankan Aplikasi
+
+### Development (Windows)
+
+Pastikan seluruh service dependency berjalan sebelum menjalankan Flask app.
+
+#### 1. WSL — jalankan MinIO dan Redis:
+
+```bash
+docker start minio
+sudo service redis-server start
+```
+
+#### 2. Aktifkan Ollama
+
+Pastikan Ollama sudah berjalan (buka aplikasi Ollama atau jalankan `ollama serve` jika belum berjalan sebagai service).
+
+#### 3. VS Code Terminal — jalankan Flask app:
+
+```bash
+cd knowledge-expert
+flask run
+```
+
+Atau dengan mode debug (auto-reload saat ada perubahan kode):
+
+```bash
+flask run --debug
 ```
 
 ---
