@@ -73,9 +73,12 @@ function statusClass(status) {
 function renderDocuments() {
     const category = filterCategory.value;
 
-    const filtered = category
+    const filtered = (category
         ? documents.filter(doc => doc.category === category)
-        : documents;
+        : documents
+    ).sort((a, b) =>
+        new Date(b.uploaded_at) - new Date(a.uploaded_at)
+    );
 
     documentsEl.innerHTML = "";
 
@@ -365,4 +368,4 @@ function escapeAttr(value) {
 
 loadDocuments();
 
-setInterval(loadDocuments, 5000);
+setInterval(loadDocuments, 60000);
