@@ -8,7 +8,7 @@ from utils.supabase_client import supabase
 from utils.anonymizer import anonymize_query
 from config import EMBEDDING_MODEL
 
-RERANK_THRESHOLD = 0.0
+# RERANK_THRESHOLD = 0.0
 
 STT_WORDS = {"stt", "sapta", "tunas", "teknologi"}
 STT_GROUP = "(stt|sapta<->tunas<->teknologi)"
@@ -29,7 +29,7 @@ def expand_query(query):
 def hybrid_retrieve(
     question: str,
     request_id: str,
-    candidate_k: int = 10,
+    candidate_k: int = 30,
     rerank_k: int = 3
 ) -> tuple[list[Document], str, int]:
 
@@ -37,7 +37,7 @@ def hybrid_retrieve(
     embedding_start = time.perf_counter()
 
     expanded_question = expand_query(question)
-    print(expanded_question)
+    print("expanded_question:", expanded_question)
 
     embedding_model = EMBEDDING_MODEL
     embedding_tokens = count_embedding_tokens(question)
@@ -90,7 +90,7 @@ def hybrid_retrieve(
     documents = [
         document
         for document in documents
-        if document.metadata["rerank_score"] >= RERANK_THRESHOLD
+        # if document.metadata["rerank_score"] >= RERANK_THRESHOLD
     ]
 
     context = "\n\n".join(document.page_content for document in documents)
@@ -104,7 +104,7 @@ def hybrid_retrieve(
         f"embedding_tokens={embedding_tokens} | "
         f"search={search_time:.3f}s | "
         f"rerank={rerank_time:.3f}s | "
-        f"threshold={RERANK_THRESHOLD:.4f} | "
+        # f"threshold={RERANK_THRESHOLD:.4f} | "
         f"relevant={len(documents)} | "
         f"total={total_time:.3f}s\n"
     )

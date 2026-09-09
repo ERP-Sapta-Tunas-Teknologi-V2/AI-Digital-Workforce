@@ -65,14 +65,23 @@ as $$
             row_number() over (
                 order by ts_rank_cd(
                     d.fts,
-                    websearch_to_tsquery('simple', query_text)
+                    query
                 ) desc
             ) as rank_ix
-        from public.documents d
-        where d.fts @@ websearch_to_tsquery(
-            'simple',
-            query_text
-        )
+        from public.documents d,
+            lateral (
+                select
+                    coalesce(
+                        nullif(websearch_to_tsquery('simple', query_text), ''),
+                        to_tsquery('simple',
+                            array_to_string(
+                                regexp_split_to_array(trim(query_text), '\s+'),
+                                ' | '
+                            )
+                        )
+                    ) as query
+            ) q
+        where d.fts @@ query
         order by rank_ix
         limit least(match_count, 30) * 2
     ),
