@@ -3,7 +3,7 @@ from threading import Thread
 from flask import Blueprint, request, jsonify, send_file
 
 from utils.permissions import require_role
-from utils.locks import try_acquire, release, is_locked
+from utils.locks import try_acquire, release
 from utils.minio_client import file_exists, upload_file, list_files, delete_file, download_file
 from utils.status_tracker import get_all_statuses, delete_status
 from ingestion.indexer import index_document
@@ -22,10 +22,6 @@ MIME_TYPES = {
 def sync_background(category):
     lock_key = f"sync:{category or 'all'}"
 
-    if not try_acquire(lock_key):
-        print(f"[SYNC] skipped: already running for '{category or 'all'}'")
-        return
-
     try:
         sync_documents(category)
     except Exception as e:
@@ -35,10 +31,6 @@ def sync_background(category):
 
 def ingest_background(category, filename):
     lock_key = f"ingest:{category}/{filename}"
-
-    if not try_acquire(lock_key):
-        print(f"[INGEST] skipped: already running for '{filename}'")
-        return
 
     try:
         index_document(category, filename)
@@ -58,7 +50,7 @@ def sync():
             return jsonify({"error": f"category must be one of {sorted(ALLOWED_CATEGORIES)}"}), 400
 
     lock_key = f"sync:{category or 'all'}"
-    if is_locked(lock_key):
+    if not try_acquire(lock_key):
         return jsonify({"error": f"sync already running for '{category or 'all'}'"}), 409
 
     Thread(target=sync_background, args=(category,), daemon=True).start()
@@ -87,7 +79,7 @@ def ingest():
         return jsonify({"error": "file not found in storage"}), 404
 
     lock_key = f"ingest:{category}/{filename}"
-    if is_locked(lock_key):
+    if not try_acquire(lock_key):
         return jsonify({"error": f"ingest already running for '{filename}'"}), 409
 
     Thread(target=ingest_background, args=(category, filename), daemon=True).start()

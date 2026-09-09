@@ -2,6 +2,7 @@ from flask import Flask, send_from_directory, jsonify
 from flask_cors import CORS
 import redis
 import requests
+import time
 
 from utils.extensions import limiter
 from utils.minio_client import ensure_bucket, client
@@ -48,8 +49,9 @@ def check_services():
     return True
 
 def create_app():
-    if not check_services():
-        raise RuntimeError("Required services are not running")
+    while not check_services():
+        print("[RETRY] Services belum siap. Coba lagi dalam 5 detik...", flush=True)
+        time.sleep(5)
 
     app = Flask(__name__)
     limiter.init_app(app)
