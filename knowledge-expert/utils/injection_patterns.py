@@ -18,7 +18,6 @@ INJECTION_PATTERNS = [
     r"you\s+are\s+now\s+",
     r"sekarang\s+anda\s+adalah\s+",
     r"mulai\s+sekarang\s+anda\s+adalah\s+",
-    r"(injection|inject)",
     r"disregard",
     r"(pretend|pura-pura)",
     r"when\s+asked\s+.*(answer|respond)",
