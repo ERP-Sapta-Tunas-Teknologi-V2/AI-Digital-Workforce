@@ -11,6 +11,26 @@ def _get_libreoffice_command():
         return r"C:\Program Files\LibreOffice\program\soffice.exe"
     return "libreoffice"
 
+def _remove_conversion_artifacts(markdown):
+    replacements = {
+        "Â": "",
+        "â€™": "'",
+        "â€œ": '"',
+        "â€": '"',
+        "â€“": "-",
+        "â€”": "—",
+        "â€¦": "…",
+    }
+
+    for old, new in replacements.items():
+        markdown = markdown.replace(old, new)
+
+    markdown = re.sub(r"[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]", "", markdown)
+    markdown = re.sub(r"[ \t]+", " ", markdown)
+    markdown = re.sub(r"\n{3,}", "\n\n", markdown)
+
+    return markdown
+
 def docx_to_pdf(docx_path, pdf_path):
     print("Converting .docx to .pdf")
     output_dir = pdf_path.parent
@@ -54,6 +74,7 @@ def pdf_to_md(pdf_path):
     return pages
 
 def clean_md(markdown):
+    markdown = _remove_conversion_artifacts(markdown)
     markdown = markdown.replace("**", "")  # Remove bold
     markdown = re.sub(r"^# (?!#)", "## ", markdown, flags=re.MULTILINE)  # h1 (#) to h2 (##)
     markdown = re.sub(re.compile("<.*?>"), " ", markdown)  # Remove html tags
