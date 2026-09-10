@@ -38,7 +38,7 @@ def index_document(category: str, filename: str):
                 print("Loaded.")
 
                 print("Creating chunks...")
-                chunks = chunker.split_markdown(documents, filename, document_id, category, uploaded_at)
+                chunks = chunker.split_markdown(documents, filename, document_id, category)
                 print(f"Created {len(chunks)} chunks.")
 
             else:
@@ -47,7 +47,7 @@ def index_document(category: str, filename: str):
                 print("Loaded.")
 
                 print("Creating chunks...")
-                chunks = chunker.split_docling(documents, filename, document_id, category, uploaded_at)
+                chunks = chunker.split_docling(documents, filename, document_id, category)
                 print(f"Created {len(chunks)} chunks.")
 
         print("Adding documents...")

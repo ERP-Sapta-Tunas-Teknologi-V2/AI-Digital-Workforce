@@ -32,7 +32,7 @@ class StructureAwareChunker:
 
         return None
 
-    def _create_chunks(self, blocks, source, document_id, category, uploaded_at):
+    def _create_chunks(self, blocks, source, document_id, category):
         sections = self._build_sections(blocks)
         documents = []
         chunk_index = 0
@@ -43,12 +43,11 @@ class StructureAwareChunker:
                     page_content=chunk["content"],
                     metadata={
                         "source": source,
-                        "document_id": document_id,
-                        "chunk_index": chunk_index,
                         "page": chunk["pages"],
                         "section_title": section["title"],
                         "category": category,
-                        "uploaded_at": uploaded_at,
+                        "document_id": document_id,
+                        "chunk_index": chunk_index,
                         "fingerprint": chunk["fingerprint"]
                     }
                 ))
@@ -56,7 +55,7 @@ class StructureAwareChunker:
 
         return documents
 
-    def split_markdown(self, page_documents, source, document_id, category, uploaded_at):
+    def split_markdown(self, page_documents, source, document_id, category):
         blocks = []
 
         for page_document in page_documents:
@@ -79,9 +78,9 @@ class StructureAwareChunker:
                     "pages": [page_number]
                 })
 
-        return self._create_chunks(blocks, source, document_id, category, uploaded_at)
+        return self._create_chunks(blocks, source, document_id, category)
 
-    def split_docling(self, docling_doc, source, document_id, category, uploaded_at):
+    def split_docling(self, docling_doc, source, document_id, category):
         blocks = []
 
         for item, level in docling_doc.iterate_items():
@@ -99,7 +98,7 @@ class StructureAwareChunker:
 
             blocks.append({"text": text.strip(), "label": label, "level": level, "pages": pages})
 
-        return self._create_chunks(blocks, source, document_id, category, uploaded_at)
+        return self._create_chunks(blocks, source, document_id, category)
 
     def _build_sections(self, blocks):
         sections = []
