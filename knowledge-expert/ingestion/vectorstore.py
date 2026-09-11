@@ -1,6 +1,4 @@
 import time
-import hashlib
-from datetime import datetime
 
 from config import EMBEDDING_MODEL
 from rag.embeddings import embeddings, count_embedding_tokens
@@ -9,41 +7,6 @@ from utils.logger import log_index_usage
 
 TARGET_BATCH_TOKENS = 9_000
 MAX_RETRIES = 3
-
-def get_file_fingerprint(chunks):
-    content = "\n".join(
-        chunk.page_content
-        for chunk in chunks
-    )
-    return hashlib.sha256(content.encode("utf-8")).hexdigest()
-
-def get_document_version(document_id, file_fingerprint):
-    result = (
-        supabase
-        .table("documents")
-        .select("metadata")
-        .eq("document_id", document_id)
-        .limit(1)
-        .execute()
-    )
-
-    if not result.data:
-        return "v1", True
-
-    metadata = result.data[0].get("metadata") or {}
-
-    current_fingerprint = metadata.get("file_fingerprint")
-    current_version = metadata.get("version", "v1")
-
-    if current_fingerprint == file_fingerprint:
-        return current_version, False
-
-    try:
-        number = int(current_version.lstrip("v"))
-    except ValueError:
-        number = 1
-
-    return f"v{number + 1}", True
 
 def _count_tokens(text):
     return count_embedding_tokens(text)
@@ -147,18 +110,6 @@ def add_documents(chunks):
 
     document_id = chunks[0].metadata["document_id"]
 
-    file_fingerprint = get_file_fingerprint(chunks)
-    version, file_changed = get_document_version(
-        document_id,
-        file_fingerprint
-    )
-
-    updated_at = (
-        datetime.now().astimezone().isoformat()
-        if file_changed
-        else None
-    )
-
     invalid_ids = {
         chunk.metadata["document_id"]
         for chunk in chunks
@@ -176,16 +127,9 @@ def add_documents(chunks):
     for chunk in chunks:
         metadata = chunk.metadata.copy()
 
-        metadata["version"] = version
-        metadata["file_fingerprint"] = file_fingerprint
-
-        if updated_at:
-            metadata["updated_at"] = updated_at
-
         metadata.pop("document_id")
         chunk_index = metadata.pop("chunk_index")
         fingerprint = metadata.pop("fingerprint")
-        file_fingerprint = metadata.pop("file_fingerprint")
 
         existing = (
             supabase
