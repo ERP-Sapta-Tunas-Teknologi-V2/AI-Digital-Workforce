@@ -73,10 +73,11 @@ function statusClass(status) {
 function renderDocuments() {
     const category = filterCategory.value;
 
-    const filtered = (category
-        ? documents.filter(doc => doc.category === category)
-        : documents
-    ).sort((a, b) =>
+    const filtered = [...(
+        category
+            ? documents.filter(doc => doc.category === category)
+            : documents
+    )].sort((a, b) =>
         new Date(b.uploaded_at) - new Date(a.uploaded_at)
     );
 
