@@ -96,6 +96,7 @@ function renderDocuments() {
             <td>
                 <div class="filename">${escapeHtml(doc.filename)}</div>
                 <div class="path">${escapeHtml(doc.path)}</div>
+                <div class="flags">${flagBadges(doc.flags)}</div>
             </td>
 
             <td>${escapeHtml(categoryMap[doc.category] ?? doc.category)}</td>
@@ -365,6 +366,27 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
     return escapeHtml(value);
+}
+
+function flagBadges(flags) {
+    if (!flags || !flags.length) return "";
+
+    const labels = {
+        duplicate: "Duplikat",
+        confidential: "Rahasia",
+        stale: "Usang"
+    };
+
+    return flags.map(f => {
+        const title = f.type === "duplicate" && f.duplicate_of
+            ? `Duplikat dari: ${f.duplicate_of}`
+            : (f.detail || "");
+        return `<span class="flag-badge flag-${f.type}" title="${escapeAttr(title)}">${labels[f.type] || f.type}</span>`;
+    }).join(" ");
+}
+
+function isBlocked(flags) {
+    return (flags || []).some(f => f.type === "duplicate" || f.type === "confidential");
 }
 
 loadDocuments();

@@ -5,6 +5,7 @@ os.environ["TORCH_COMPILE_DISABLE"] = "1"
 from pathlib import Path
 from ingestion.indexer import index_document
 from ingestion.vectorstore import get_document_ids, delete_document
+from utils.doc_screening import screen_document, extract_text_sample
 
 SOURCE_DIR = Path("documents")
 SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".xlsx", ".pptx"}
@@ -41,8 +42,19 @@ def sync_category(category):
     print(f"[SYNC] {category} | New: {len(new_ids)} | Existing: {len(existing_ids)} | Deleted: {len(deleted_ids)}")
 
     for document_id in new_ids | existing_ids:
-        print(f"\n[SYNC] {source_files[document_id]}")
-        index_document(str(source_files[document_id]))
+        path = source_files[document_id]
+        file_bytes = path.read_bytes()
+
+        text_sample = extract_text_sample(path.name, file_bytes)
+
+        should_block, flags = screen_document(document_id, file_bytes, text_sample=text_sample)
+
+        if should_block:
+            print(f"[SYNC] SKIPPED (flagged): {document_id} | flags={flags}")
+            continue
+
+        print(f"\n[SYNC] {path}")
+        index_document(str(path))
 
     for document_id in deleted_ids:
         print(f"[SYNC] Removing: {document_id}")

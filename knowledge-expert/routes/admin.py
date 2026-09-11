@@ -6,6 +6,8 @@ from utils.permissions import require_role
 from utils.locks import try_acquire, release
 from utils.minio_client import file_exists, upload_file, list_files, delete_file, download_file
 from utils.status_tracker import get_all_statuses, delete_status
+from utils.doc_screening import screen_document, find_duplicate, extract_text_sample
+from utils.supabase_admin import supabase
 from ingestion.indexer import index_document
 from ingestion.vectorstore import delete_document
 from sync.sync import sync_documents, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
@@ -78,6 +80,16 @@ def ingest():
     if not file_exists(category, filename):
         return jsonify({"error": "file not found in storage"}), 404
 
+    document_id = f"{category}:{Path(filename).stem}"
+    flag_check = supabase.table("document_flags").select("flag_type").eq("document_id", document_id).execute()
+    blocking = [f["flag_type"] for f in (flag_check.data or []) if f["flag_type"] in {"duplicate", "confidential"}]
+
+    if blocking:
+        return jsonify({
+            "error": f"document flagged as {blocking}, ingest blocked pending review",
+            "hint": "gunakan endpoint override jika ingin memaksa ingest"
+        }), 409
+
     lock_key = f"ingest:{category}/{filename}"
     if not try_acquire(lock_key):
         return jsonify({"error": f"ingest already running for '{filename}'"}), 409
@@ -116,13 +128,19 @@ def upload():
 
     mime_type = MIME_TYPES.get(ext, file.content_type or "application/octet-stream")
 
-    upload_file(
-        category=category,
-        filename=filename,
-        file_stream=file,
-        length=len(file_bytes),
-        content_type=mime_type
-    )
+    document_id = f"{category}:{Path(filename).stem}"
+    text_sample = extract_text_sample(filename, file_bytes)
+    should_block, flags = screen_document(document_id, file_bytes, text_sample=text_sample)
+
+    upload_file(category=category, filename=filename, file_stream=file, length=len(file_bytes), content_type=mime_type)
+
+    if should_block:
+        reasons = ", ".join(f"{flag_type}: {detail}" for flag_type, detail in flags)
+        return jsonify({
+            "warning": "document flagged for review",
+            "flags": [{"type": t, "detail": d} for t, d in flags],
+            "message": f'File di-upload tetapi review diperlukan sebelum di-ingest karena "{reasons}".'
+        }), 200  # tetap 200, tapi ingest_status akan tetap not_ingested karena admin harus trigger manual
 
     return jsonify({
         "message": "File uploaded successfully",
@@ -140,6 +158,11 @@ def documents():
 
     status_map = {s["document_id"]: s for s in statuses}
 
+    flags_result = supabase.table("document_flags").select("document_id, flag_type, detail, duplicate_of").execute()
+    flags_map = {}
+    for row in flags_result.data or []:
+        flags_map.setdefault(row["document_id"], []).append(row)
+
     for f in files:
         document_id = f"{f['category']}:{f['filename'].rsplit('.', 1)[0]}"
         status_entry = status_map.get(document_id)
@@ -150,6 +173,13 @@ def documents():
 
         f["uploaded_at_wib"] = _to_wib(f["uploaded_at"])
         f["last_ingested_at_wib"] = _to_wib(f["last_ingested_at"]) if status_entry else None
+
+        doc_flags = flags_map.get(document_id, [])
+        f["flags"] = [
+            {"type": fl["flag_type"], "detail": fl["detail"], "duplicate_of": fl.get("duplicate_of")}
+            for fl in doc_flags
+            if fl["flag_type"] != "clean"
+        ]
 
     return jsonify(files)
 

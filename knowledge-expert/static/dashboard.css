@@ -257,3 +257,34 @@ th {
     font-size: 12px;
     margin-left: 4px;
 }
+
+.flags {
+    margin-top: 4px;
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+}
+
+.flag-badge {
+    display: inline-block;
+    padding: 2px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: bold;
+    cursor: help;
+}
+
+.flag-duplicate {
+    background: #fde2e1;
+    color: #b42318;
+}
+
+.flag-confidential {
+    background: #2b2b2b;
+    color: white;
+}
+
+.flag-stale {
+    background: #fff3cd;
+    color: #856404;
+}

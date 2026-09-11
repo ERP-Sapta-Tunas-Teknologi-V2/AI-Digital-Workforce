@@ -545,3 +545,21 @@ $$;
 
 revoke execute on function public.get_ingestion_report(date, date) from anon, authenticated;
 grant execute on function public.get_ingestion_report(date, date) to service_role;
+
+create table if not exists public.document_flags (
+    document_id text primary key,
+    flag_type text not null,     -- 'duplicate' | 'stale' | 'confidential' | 'expired'
+    detail text,
+    duplicate_of text,           -- document_id lain jika flag_type = 'duplicate'
+    file_hash text,
+    created_at timestamptz default now()
+);
+
+create index if not exists idx_document_flags_type on public.document_flags(flag_type);
+
+grant select, insert, update, delete on public.document_flags to service_role;
+
+alter table public.document_flags enable row level security;
+
+create policy "Allow service_role all on document_flags" on public.document_flags for all
+to service_role using (true) with check (true);
