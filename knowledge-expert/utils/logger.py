@@ -17,10 +17,7 @@ def log_query(query, anon_id):
     # finally:
     #     print(f"[LOGGING] background={time.perf_counter() - start:.3f}s")
 
-def log_index_usage(
-    emb_model,
-    embedding_tokens=0,
-):
+def log_index_usage(emb_model, embedding_tokens=0):
     try:
         emb_cost = calculate_emb_cost(emb_model, embedding_tokens)
 
@@ -33,15 +30,7 @@ def log_index_usage(
     except Exception as e:
         print(f"[USAGE] failed: {e}")
 
-def log_chat_usage(
-    request_id,
-    anon_id,
-    emb_model,
-    llm_model,
-    embedding_tokens=0,
-    llm_input_tokens=0,
-    llm_output_tokens=0
-):
+def log_chat_usage(request_id, anon_id, emb_model, llm_model, embedding_tokens=0, llm_input_tokens=0, llm_output_tokens=0):
     try:
         total_tokens = embedding_tokens + llm_input_tokens + llm_output_tokens
 
@@ -72,3 +61,23 @@ def log_chat_usage(
 
     except Exception as e:
         print(f"[USAGE] failed: {e}")
+
+def log_ingestion(document_id, category, filename, result, status, duration_seconds, total_chunks=0, parse_error=None):
+    try:
+        supabase.table("ingestion_logs").insert({
+            "document_id": document_id,
+            "category": category,
+            "filename": filename,
+            "total_chunks": total_chunks,
+            "chunks_inserted": result.get("inserted", 0),
+            "chunks_updated": result.get("updated", 0),
+            "chunks_skipped": result.get("skipped", 0),
+            "chunks_deleted": result.get("deleted", 0),
+            "chunks_failed": result.get("failed", 0),
+            "parse_error": parse_error,
+            "status": status,
+            "duration_seconds": duration_seconds
+        }, returning="minimal").execute()
+
+    except Exception as e:
+        print(f"[INGESTION LOG] failed: {e}")
