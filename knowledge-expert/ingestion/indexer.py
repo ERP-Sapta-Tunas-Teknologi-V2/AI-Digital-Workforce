@@ -7,7 +7,7 @@ from ingestion.cleaner import preprocessing
 from ingestion.loader import load_markdown, load_document
 from ingestion.splitter import StructureAwareChunker
 from ingestion.vectorstore import add_documents
-from utils.status_tracker import set_status
+from utils.status_tracker import set_status, get_version_number
 from utils.minio_client import client, object_key
 from utils.logger import log_ingestion
 import config
@@ -17,6 +17,7 @@ chunker = StructureAwareChunker(max_tokens=1000)
 def index_document(category: str, filename: str):
     document_id = f"{category}:{Path(filename).stem}"
     uploaded_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    version = get_version_number(document_id)
     start = time.perf_counter()
 
     try:
@@ -37,7 +38,7 @@ def index_document(category: str, filename: str):
                     print("Loaded.")
 
                     print("Creating chunks...")
-                    chunks = chunker.split_markdown(documents, filename, document_id, category, uploaded_at)
+                    chunks = chunker.split_markdown(documents, filename, document_id, category, uploaded_at, version)
                     print(f"Created {len(chunks)} chunks.")
 
                 else:
@@ -46,7 +47,7 @@ def index_document(category: str, filename: str):
                     print("Loaded.")
 
                     print("Creating chunks...")
-                    chunks = chunker.split_docling(documents, filename, document_id, category, uploaded_at)
+                    chunks = chunker.split_docling(documents, filename, document_id, category, uploaded_at, version)
                     print(f"Created {len(chunks)} chunks.")
 
             except Exception as parse_error:

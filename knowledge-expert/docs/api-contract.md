@@ -84,9 +84,12 @@ Format:
   "type": "metadata",
   "sources": [
     {
+      "page": [1,2],
       "source": "...",
+      "category": "datasheet",
+      "uploaded_at": "...",
       "section_title": "...",
-      "uploaded_at": "..."
+      "version": 1
     }
   ],
   "fallback": false
@@ -151,7 +154,7 @@ done
 Contoh lengkap:
 
 ```text
-data: {"type":"metadata","sources":[{"source":"...","section_title":"...","uploaded_at":"..."}],"fallback":false}
+data: {"type":"metadata","sources":[...],"fallback":false}
 
 data: {"type":"token","content":"..."}
 
@@ -195,11 +198,14 @@ Contoh:
 {
   "sources": [
     {
+      "page": [1,2],
       "source": "...",
+      "category": "datasheet",
+      "uploaded_at": "...",
       "section_title": "...",
-      "uploaded_at": "..."
+      "version": 1
     }
-  ]
+  ],
 }
 ```
 

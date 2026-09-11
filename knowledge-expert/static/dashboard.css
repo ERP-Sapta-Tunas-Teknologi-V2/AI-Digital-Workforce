@@ -288,3 +288,8 @@ th {
     background: #fff3cd;
     color: #856404;
 }
+
+.flag-superseded {
+    background: #e0e0e0;
+    color: #555;
+}

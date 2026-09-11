@@ -468,11 +468,15 @@ create table if not exists public.document_status (
     status text not null default 'pending',
     detail text,
     last_ingested_at timestamptz,
+    version_status text not null default 'active',  -- 'active' | 'superseded'
+    superseded_by text,   -- document_id versi baru
+    superseded_at timestamptz,
     created_at timestamptz default now()
 );
 
 create index if not exists idx_document_status_category on public.document_status(category);
 create index if not exists idx_document_status_status on public.document_status(status);
+create index if not exists idx_document_status_version on public.document_status(version_status);
 
 grant select, insert, update, delete on public.document_status to service_role;
 grant usage, select on all sequences in schema public to service_role;

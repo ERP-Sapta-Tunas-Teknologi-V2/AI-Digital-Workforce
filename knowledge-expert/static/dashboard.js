@@ -96,7 +96,7 @@ function renderDocuments() {
             <td>
                 <div class="filename">${escapeHtml(doc.filename)}</div>
                 <div class="path">${escapeHtml(doc.path)}</div>
-                <div class="flags">${flagBadges(doc.flags)}</div>
+                <div class="flags">${flagBadges(doc.flags)}${versionBadge(doc)}</div>
             </td>
 
             <td>${escapeHtml(categoryMap[doc.category] ?? doc.category)}</td>
@@ -131,13 +131,13 @@ function renderDocuments() {
                     data-action="ingest"
                     data-category="${escapeAttr(doc.category)}"
                     data-filename="${escapeAttr(doc.filename)}"
-                    ${doc.ingest_status === "processing" ? "disabled" : ""}
+                    ${doc.ingest_status === "processing" || doc.is_archived ? "disabled" : ""}
                 >
-                    ${doc.ingest_status === "processing" ? "Processing..." : "Ingest"}
+                    ${doc.is_archived ? "Arsip" : (doc.ingest_status === "processing" ? "Processing..." : "Ingest")}
                 </button>
 
                 ${
-                    doc.ingest_status !== "not_ingested"
+                    doc.ingest_status !== "not_ingested" && doc.ingest_status !== "processing"
                     ? `
                     <button
                         class="un-ingest-button"
@@ -387,6 +387,13 @@ function flagBadges(flags) {
 
 function isBlocked(flags) {
     return (flags || []).some(f => f.type === "duplicate" || f.type === "confidential");
+}
+
+function versionBadge(doc) {
+    if (doc.version_status === "superseded") {
+        return `<span class="flag-badge flag-superseded" title="Digantikan oleh: ${escapeAttr(doc.superseded_by || '-')}">Superseded</span>`;
+    }
+    return "";
 }
 
 loadDocuments();

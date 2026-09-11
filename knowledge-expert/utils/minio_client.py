@@ -1,5 +1,6 @@
 from minio import Minio
-from datetime import timezone
+from datetime import timezone, datetime
+from minio.commonconfig import CopySource
 import io
 import config
 
@@ -72,3 +73,19 @@ def download_file(category: str, filename: str):
         response.release_conn()
 
     return io.BytesIO(data)
+
+def archive_file(category: str, filename: str):
+    """Pindahkan file ke folder _archive dengan timestamp, bukan dihapus permanen."""
+    
+    timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+    src_key = object_key(category, filename)
+    dst_key = f"{category}/_archive/{timestamp}_{filename}"
+
+    client.copy_object(
+        config.MINIO_BUCKET,
+        dst_key,
+        CopySource(config.MINIO_BUCKET, src_key)
+    )
+    client.remove_object(config.MINIO_BUCKET, src_key)
+
+    return dst_key
