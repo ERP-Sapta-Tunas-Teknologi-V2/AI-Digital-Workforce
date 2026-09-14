@@ -2,7 +2,7 @@ from flask import Blueprint, Response, request, jsonify
 from datetime import datetime, timedelta
 from zoneinfo import ZoneInfo
 
-from sync.export_logs import export_query_logs
+from sync.export_logs import export_interaction_logs
 from utils.permissions import require_role
 from utils.supabase_admin import supabase
 from utils.budget_monitor import check_budget
@@ -32,7 +32,7 @@ def export_logs():
 
         end = end + timedelta(days=1) if end else None
 
-        csv_data = export_query_logs(
+        csv_data = export_interaction_logs(
             start.isoformat() if start else None,
             end.isoformat() if end else None
         )
@@ -42,7 +42,7 @@ def export_logs():
             status=200,
             content_type="text/csv; charset=utf-8",
             headers={
-                "Content-Disposition": "attachment; filename=query_logs.csv"
+                "Content-Disposition": "attachment; filename=interaction_logs.csv"
             }
         )
 

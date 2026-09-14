@@ -9,7 +9,7 @@ from rag.retriever import hybrid_retrieve
 from rag.chain import generate_answer
 from utils.extensions import limiter
 from utils.anonymizer import anonymize_query
-from utils.logger import log_query, log_chat_usage
+from utils.logger import log_query, log_chat_usage, update_interaction_response
 from utils.injection_patterns import INJECTION_PATTERNS
 from utils.permissions import get_allowed_categories
 from session.manager import SessionManager
@@ -40,9 +40,9 @@ def validate_query(question):
 
     return None
 
-def log_query_background(query, anon_id):
+def log_query_background(query, anon_id, request_id, session_id):
     try:
-        return log_query(query, anon_id)
+        return log_query(query, anon_id, request_id, session_id)
     except Exception as e:
         print(f"[LOGGING] failed: {e}")
 
@@ -114,7 +114,7 @@ def chat():
     }
 
     log_start = time.perf_counter()
-    Thread(target=log_query_background, args=(safe_query, anon_id), daemon=True).start()
+    Thread(target=log_query_background, args=(safe_query, anon_id, request_id, session_id), daemon=True).start()
     log_time = time.perf_counter() - log_start
     with open("log/log_time.txt", "a", encoding="utf-8") as f:
         f.write(f"[{request_id}] [LOGGING] total={log_time:.3f}s\n")
@@ -129,6 +129,7 @@ def chat():
     if not documents:
         answer = "Informasi tidak ditemukan dalam knowledge base. Silakan hubungi kontak kami."
         session_manager.add_message(session_id, "assistant", answer)
+        Thread(target=update_interaction_response, args=(request_id, answer, []), daemon=True).start()
         return jsonify({
             "session_id": session_id,
             "question": safe_query,
@@ -179,6 +180,7 @@ def chat():
         answer = "".join(full_answer)
 
         session_manager.add_message(session_id, "assistant", answer)
+        Thread(target=update_interaction_response, args=(request_id, answer, sources), daemon=True).start()
 
         Thread(
             target=log_usage_background,

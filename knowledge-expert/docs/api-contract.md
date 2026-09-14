@@ -626,7 +626,7 @@ GET /api/logs/export?start=YYYY-MM-DD&end=YYYY-MM-DD
 
 ```text
 Content-Type: text/csv; charset=utf-8
-Content-Disposition: attachment; filename=query_logs.csv
+Content-Disposition: attachment; filename=interaction_logs.csv
 ```
 
 Body berupa data CSV query log (UTF-8 dengan BOM).

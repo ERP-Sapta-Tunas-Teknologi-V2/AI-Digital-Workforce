@@ -539,7 +539,7 @@ Menyimpan chunk hasil indexing beserta embedding-nya. Digunakan untuk retrieval 
 | `embedding`   | vector(1024) | BGE-M3 embedding       |
 | `fts`         | tsvector     | Full-text search index |
 
-#### `query_logs`
+#### `interaction_logs`
 
 Mencatat setiap pertanyaan user (setelah anonymization) untuk keperluan analytics seperti Top FAQ. Setiap log terikat pada `anon_id`, bukan identitas user asli.
 
@@ -567,7 +567,7 @@ hybrid_search()
 get_top_faq()
 get_daily_cost_report()
 get_weekly_cost_report()
-delete_expired_query_logs()
+delete_expired_interaction_logs()
 ```
 
 ---

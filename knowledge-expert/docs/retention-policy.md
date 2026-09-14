@@ -19,7 +19,7 @@ Tujuan kebijakan ini adalah memastikan data hanya disimpan selama diperlukan unt
 | Data             | Storage                   | Isi Data                                                 |                  Retention |
 | ---------------- | ------------------------- | -------------------------------------------------------- | -------------------------: |
 | Session          | Session store             | session ID, conversation history, timestamps             |               Maks. 24 jam |
-| Query logs       | `public.query_logs`       | anonymized query, anon ID, timestamp                     |                    30 hari |
+| Query logs       | `public.interaction_logs`       | anonymized query, anon ID, timestamp                     |                    30 hari |
 | Chat usage logs  | `public.chat_usage_logs`  | request ID, anon ID, token usage, model, cost, timestamp |                    90 hari |
 | Index usage logs | `public.index_usage_logs` | embedding model, token usage, cost, timestamp            |                    90 hari |
 | Budget alerts    | `public.budget_alerts`    | period, alert type, cost, budget, usage percentage       |                    90 hari |
@@ -84,7 +84,7 @@ Sistem tidak boleh bergantung pada aktivitas user berikutnya untuk mempertahanka
 
 ## 4.1 Stored Data
 
-System menyimpan data berikut pada `public.query_logs`:
+System menyimpan data berikut pada `public.interaction_logs`:
 
 * `id` — unique identifier.
 * `query` — query user yang telah melalui anonymization.
@@ -125,7 +125,7 @@ Query log tidak boleh digunakan untuk tujuan lain tanpa review dan approval yang
 
 # 5. Query Privacy & Anonymization
 
-Sebelum disimpan ke `query_logs`, query harus melalui proses anonymization.
+Sebelum disimpan ke `interaction_logs`, query harus melalui proses anonymization.
 
 Contoh data yang harus direduksi:
 
@@ -255,7 +255,7 @@ created_at < now() - interval '90 days'
 Contoh SQL:
 
 ```sql
-delete from public.query_logs
+delete from public.interaction_logs
 where timestamp < now() - interval '30 days';
 
 delete from public.chat_usage_logs

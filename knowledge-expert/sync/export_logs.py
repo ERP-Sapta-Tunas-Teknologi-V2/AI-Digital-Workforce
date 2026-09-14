@@ -2,9 +2,9 @@ import csv
 import io
 from utils.supabase_admin import supabase
 
-def export_query_logs(start_date=None, end_date=None):
+def export_interaction_logs(start_date=None, end_date=None):
     query = (
-        supabase.table("query_logs")
+        supabase.table("interaction_logs")
         .select("id,query,timestamp")
         .order("timestamp", desc=True)
     )

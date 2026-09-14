@@ -122,20 +122,25 @@ create policy "Allow select documents" on public.documents for select to anon us
 create policy "Allow update documents" on public.documents for update to anon using (true) with check (true);
 create policy "Allow delete documents" on public.documents for delete to anon using (true);
 
-drop table if exists public.query_logs;
-create table public.query_logs (
+drop table if exists public.interaction_logs;
+create table public.interaction_logs (
     id bigint generated always as identity primary key,
+    request_id text,
+    session_id text,
     query text not null,
+    answer text,
+    sources jsonb,
     timestamp timestamptz not null default now(),
     anon_id uuid not null
 );
 
-grant insert on table public.query_logs to anon;
-grant usage, select on sequence public.query_logs_id_seq to anon;
+grant insert on table public.interaction_logs to anon;
+grant usage, select on sequence public.interaction_logs_id_seq to anon;
+grant select, insert, update on table public.interaction_logs to service_role;
 
-create policy "Allow anon insert query logs" on public.query_logs for insert to anon with check (true);
+create policy "Allow anon insert query logs" on public.interaction_logs for insert to anon with check (true);
 
-create or replace function public.delete_expired_query_logs()
+create or replace function public.delete_expired_interaction_logs()
 returns integer
 language plpgsql
 security definer
@@ -144,7 +149,7 @@ as $$
 declare
     deleted_count integer;
 begin
-    delete from public.query_logs
+    delete from public.interaction_logs
     where timestamp < now() - interval '30 days';
 
     get diagnostics deleted_count = row_count;
@@ -152,15 +157,14 @@ begin
 end;
 $$;
 
-revoke execute on function public.delete_expired_query_logs() from anon, authenticated; 
+revoke execute on function public.delete_expired_interaction_logs() from anon, authenticated; 
 
-create index idx_query_logs_timestamp on public.query_logs(timestamp);
+create index idx_interaction_logs_timestamp on public.interaction_logs(timestamp);
+create unique index interaction_logs_request_id_unique on public.interaction_logs(request_id);
 
 alter database postgres set timezone = 'Asia/Jakarta';
 
-grant select, insert on table public.query_logs to service_role;
-
-alter table public.query_logs enable row level security;
+alter table public.interaction_logs enable row level security;
 
 create or replace function public.get_top_faq(
     days int default 30,
@@ -179,7 +183,7 @@ as $$
         q.query,
         count(*) as total_queries,
         max(q.timestamp) as last_asked
-    from public.query_logs q
+    from public.interaction_logs q
     where q.timestamp >= now() - make_interval(days => days)
     group by q.query
     order by total_queries desc

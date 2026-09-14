@@ -2,7 +2,7 @@ from utils.supabase_client import supabase
 
 def delete_expired_logs():
     try:
-        result = supabase.rpc("delete_expired_query_logs").execute()
+        result = supabase.rpc("delete_expired_interaction_logs").execute()
         deleted = result.data or 0
         print(f"[RETENTION] deleted={deleted}")
         return deleted

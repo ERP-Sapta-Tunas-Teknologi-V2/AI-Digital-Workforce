@@ -2,20 +2,28 @@ import time
 from utils.supabase_admin import supabase
 from utils.cost_calculator import calculate_cost, calculate_emb_cost
 
-def log_query(query, anon_id):
-    start = time.perf_counter()
+def log_query(query, anon_id, request_id=None, session_id=None):
     try:
-        supabase.table("query_logs").insert(
+        supabase.table("interaction_logs").insert(
             {
                 "query": query,
-                "anon_id": str(anon_id)
+                "anon_id": str(anon_id),
+                "request_id": request_id,
+                "session_id": session_id
             },
             returning="minimal"
         ).execute()
     except Exception as e:
         print(f"[LOGGING] failed: {e}")
-    # finally:
-    #     print(f"[LOGGING] background={time.perf_counter() - start:.3f}s")
+
+def update_interaction_response(request_id, answer, sources):
+    try:
+        supabase.table("interaction_logs").update({
+            "answer": answer,
+            "sources": sources
+        }).eq("request_id", request_id).execute()
+    except Exception as e:
+        print(f"[LOGGING] update failed: {e}")
 
 def log_index_usage(emb_model, embedding_tokens=0):
     try:
