@@ -541,7 +541,11 @@ Menyimpan chunk hasil indexing beserta embedding-nya. Digunakan untuk retrieval 
 
 #### `interaction_logs`
 
-Mencatat setiap pertanyaan user (setelah anonymization) untuk keperluan analytics seperti Top FAQ. Setiap log terikat pada `anon_id`, bukan identitas user asli.
+Mencatat setiap pertanyaan user (setelah anonymization), jawaban chatbot, dan dokumen/chunk yang dirujuk (`sources`) untuk keperluan analytics seperti Top FAQ, identifikasi jawaban bermasalah, dan identifikasi dokumen yang perlu direvisi. Setiap log terikat pada `anon_id`, bukan identitas user asli, dan dihubungkan ke `response_feedback` melalui `request_id`. Retensi bertingkat: 30 hari untuk baris tanpa feedback, 90 hari untuk baris dengan feedback (lihat [`retention-policy.md`](docs/retention-policy.md)).
+
+#### `response_feedback`
+
+Menyimpan feedback pengguna (thumbs up/down beserta alasan opsional) terhadap suatu jawaban chatbot, terhubung ke `interaction_logs` melalui `request_id`. Satu `request_id` hanya dapat memiliki satu feedback (upsert, sehingga feedback dapat diubah). Baris dihapus otomatis mengikuti retensi `interaction_logs` induknya melalui `on delete cascade`.
 
 #### `chat_usage_logs`
 
@@ -567,6 +571,8 @@ hybrid_search()
 get_top_faq()
 get_daily_cost_report()
 get_weekly_cost_report()
+get_problematic_answers()
+get_flagged_documents()
 delete_expired_interaction_logs()
 ```
 
@@ -1396,6 +1402,16 @@ total
 
 Log digunakan untuk QA, monitoring, dan analisis latency.
 
+### Feedback
+
+Setiap jawaban chatbot dapat diberi feedback melalui:
+
+```http
+POST /api/feedback
+```
+
+Feedback (`up`/`down` beserta alasan opsional) terhubung ke jawaban dan dokumen yang dirujuk melalui `request_id`, sehingga dapat digunakan untuk mengidentifikasi jawaban bermasalah dan dokumen yang perlu direvisi (lihat [Analytics Endpoints](#analytics-endpoints)).
+
 ---
 
 ## CORS
@@ -1528,6 +1544,22 @@ GET /api/cost/budget
 ```
 
 Mengembalikan status penggunaan budget saat ini terhadap limit yang ditentukan.
+
+### Problematic Answers
+
+```http
+GET /api/analytics/problematic-answers?days=30&min_downvotes=1&limit=20
+```
+
+Mengembalikan daftar jawaban dengan feedback negatif (downvote) terbanyak dalam rentang hari tertentu, beserta pertanyaan, jawaban, dokumen yang dirujuk, jumlah up/downvote, dan alasan downvote.
+
+### Flagged Documents
+
+```http
+GET /api/analytics/flagged-documents?days=30&limit=20
+```
+
+Mengembalikan daftar dokumen yang paling sering dirujuk pada jawaban yang mendapat downvote, beserta rasio downvote terhadap total kemunculan dokumen tersebut pada jawaban berfeedback. Digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi.
 
 Detail lengkap request/response setiap endpoint di atas tersedia pada [`api-contract.md`](docs/api-contract.md).
 

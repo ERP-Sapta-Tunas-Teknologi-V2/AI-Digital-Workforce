@@ -431,6 +431,7 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | Endpoint               | Method | Akses           |
 | ----------------------- | ------ | --------------- |
 | `/api/chat`             | POST   | Public          |
+| `/api/feedback`         | POST   | Public          |
 | `/api/admin/ingest`     | POST   | Admin           |
 | `/api/admin/sync`       | POST   | Admin           |
 | `/api/logs/export`      | GET    | Admin           |
@@ -438,6 +439,8 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | `/api/cost/daily`       | GET    | Admin           |
 | `/api/cost/weekly`      | GET    | Admin           |
 | `/api/cost/budget`      | GET    | Admin           |
+| `/api/analytics/problematic-answers` | GET | Admin |
+| `/api/analytics/flagged-documents`   | GET | Admin |
 | `/`                     | GET    | Public          |
 
 ## POST /api/admin/ingest
@@ -777,6 +780,166 @@ Tidak ada parameter.
 ```
 
 Struktur response bergantung pada implementasi `check_budget()`.
+
+---
+
+## POST /api/feedback
+
+Endpoint untuk mengirim feedback (thumbs up/down beserta alasan opsional) terhadap suatu jawaban chatbot.
+
+### Akses
+
+Public — tidak dibatasi role, dapat dipanggil oleh widget chat publik.
+
+### Request
+
+```http
+POST /api/feedback
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "request_id": "...",
+  "rating": "up",
+  "reason": null
+}
+```
+
+| Parameter    | Type   | Required | Description                                    |
+| ------------ | ------ | -------- | ----------------------------------------------- |
+| `request_id` | string | Yes      | `request_id` yang diterima pada metadata/fallback response `/api/chat` |
+| `rating`     | string | Yes      | `up` atau `down`                                 |
+| `reason`     | string | No       | Alasan feedback, khususnya untuk `down`          |
+
+Satu `request_id` hanya dapat memiliki satu feedback. Mengirim feedback baru untuk `request_id` yang sama akan menimpa (upsert) feedback sebelumnya, bukan menambah entri baru.
+
+### Response
+
+`201 Created`:
+
+```json
+{
+  "message": "feedback recorded"
+}
+```
+
+### Error Response
+
+`400 Bad Request`:
+
+```json
+{ "error": "request_id is required" }
+```
+
+```json
+{ "error": "rating must be 'up' or 'down'" }
+```
+
+`404 Not Found` — `request_id` tidak ditemukan pada `interaction_logs` (misalnya sudah melewati retention period):
+
+```json
+{ "error": "request_id not found" }
+```
+
+`500 Internal Server Error`:
+
+```json
+{ "error": "failed to record feedback" }
+```
+
+### Rate Limit
+
+```text
+20 request / menit / IP
+```
+
+---
+
+## GET /api/analytics/problematic-answers
+
+Endpoint untuk mendapatkan daftar jawaban chatbot dengan feedback negatif (downvote) terbanyak.
+
+### Akses
+
+Dibatasi untuk role `Admin`.
+
+### Request
+
+```http
+GET /api/analytics/problematic-answers?days=30&min_downvotes=1&limit=20
+```
+
+| Parameter       | Type    | Required | Default | Description                                     |
+| --------------- | ------- | -------- | ------- | ------------------------------------------------ |
+| `days`          | integer | No       | 30      | Rentang hari ke belakang yang dihitung           |
+| `min_downvotes` | integer | No       | 1       | Jumlah downvote minimum agar jawaban ditampilkan |
+| `limit`         | integer | No       | 20      | Jumlah maksimum hasil yang dikembalikan          |
+
+### Response
+
+`200 OK`
+
+```json
+[
+  {
+    "request_id": "...",
+    "question": "...",
+    "answer": "...",
+    "sources": [...],
+    "upvotes": 0,
+    "downvotes": 3,
+    "reasons": ["jawaban tidak relevan", "harga sudah tidak berlaku"],
+    "last_feedback_at": "..."
+  }
+]
+```
+
+Jika tidak ada data, mengembalikan array kosong `[]`.
+
+---
+
+## GET /api/analytics/flagged-documents
+
+Endpoint untuk mendapatkan daftar dokumen yang paling sering dirujuk pada jawaban yang mendapat downvote, digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi.
+
+### Akses
+
+Dibatasi untuk role `Admin`.
+
+### Request
+
+```http
+GET /api/analytics/flagged-documents?days=30&limit=20
+```
+
+| Parameter | Type    | Required | Default | Description                             |
+| --------- | ------- | -------- | ------- | ---------------------------------------- |
+| `days`    | integer | No       | 30      | Rentang hari ke belakang yang dihitung   |
+| `limit`   | integer | No       | 20      | Jumlah maksimum hasil yang dikembalikan  |
+
+### Response
+
+`200 OK`
+
+```json
+[
+  {
+    "document_id": "pricelist:dell",
+    "source": "pricelist_dell.xlsx",
+    "category": "pricelist",
+    "flagged_count": 4,
+    "total_referenced_count": 10,
+    "flag_ratio": 0.40
+  }
+]
+```
+
+`flag_ratio` dihitung dari jumlah downvote dibagi total kemunculan dokumen tersebut pada jawaban yang memiliki feedback (bukan seluruh jawaban).
+
+Jika tidak ada data, mengembalikan array kosong `[]`.
 
 ---
 

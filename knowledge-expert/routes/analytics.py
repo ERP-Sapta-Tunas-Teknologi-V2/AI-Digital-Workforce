@@ -104,3 +104,37 @@ def weekly_cost():
 @require_role("Admin")
 def cost_budget():
     return jsonify(check_budget())
+
+@analytics_bp.route("/analytics/problematic-answers", methods=["GET"])
+@require_role("Admin")
+def problematic_answers():
+    days = request.args.get("days", 30, type=int)
+    min_downvotes = request.args.get("min_downvotes", 1, type=int)
+    limit = request.args.get("limit", 20, type=int)
+
+    result = supabase.rpc(
+        "get_problematic_answers",
+        {
+            "days": days,
+            "min_downvotes": min_downvotes,
+            "result_limit": limit
+        }
+    ).execute()
+
+    return jsonify(result.data or [])
+
+@analytics_bp.route("/analytics/flagged-documents", methods=["GET"])
+@require_role("Admin")
+def flagged_documents():
+    days = request.args.get("days", 30, type=int)
+    limit = request.args.get("limit", 20, type=int)
+
+    result = supabase.rpc(
+        "get_flagged_documents",
+        {
+            "days": days,
+            "result_limit": limit
+        }
+    ).execute()
+
+    return jsonify(result.data or [])

@@ -153,8 +153,23 @@ as $$
 declare
     deleted_count integer;
 begin
-    delete from public.interaction_logs
-    where timestamp < now() - interval '30 days';
+    delete from public.interaction_logs i
+    where (
+        -- baris tanpa feedback: retensi 30 hari
+        not exists (
+            select 1 from public.response_feedback f
+            where f.request_id = i.request_id
+        )
+        and i.timestamp < now() - interval '30 days'
+    )
+    or (
+        -- baris dengan feedback: retensi 90 hari
+        exists (
+            select 1 from public.response_feedback f
+            where f.request_id = i.request_id
+        )
+        and i.timestamp < now() - interval '90 days'
+    );
 
     get diagnostics deleted_count = row_count;
     return deleted_count;
@@ -582,3 +597,92 @@ for all to service_role using (true) with check (true);
 
 alter table public.response_feedback enable row level security;
 alter table public.response_feedback add constraint response_feedback_request_id_unique unique (request_id);
+
+create or replace function public.get_problematic_answers(
+    days int default 30,
+    min_downvotes int default 1,
+    result_limit int default 20
+)
+returns table (
+    request_id text,
+    question text,
+    answer text,
+    sources jsonb,
+    upvotes bigint,
+    downvotes bigint,
+    reasons text[],
+    last_feedback_at timestamptz
+)
+language sql
+security definer
+set search_path = public
+as $$
+    select
+        i.request_id,
+        i.query as question,
+        i.answer,
+        i.sources,
+        count(*) filter (where f.rating = 'up') as upvotes,
+        count(*) filter (where f.rating = 'down') as downvotes,
+        array_remove(array_agg(f.reason) filter (where f.rating = 'down'), null) as reasons,
+        max(f.created_at) as last_feedback_at
+    from public.interaction_logs i
+    join public.response_feedback f on f.request_id = i.request_id
+    where i.timestamp >= now() - make_interval(days => days)
+    group by i.request_id, i.query, i.answer, i.sources
+    having count(*) filter (where f.rating = 'down') >= min_downvotes
+    order by downvotes desc, last_feedback_at desc
+    limit result_limit;
+$$;
+
+revoke execute on function public.get_problematic_answers(int, int, int) from anon, authenticated;
+grant execute on function public.get_problematic_answers(int, int, int) to service_role;
+
+create or replace function public.get_flagged_documents(
+    days int default 30,
+    result_limit int default 20
+)
+returns table (
+    source text,
+    chunk_index int,
+    flagged_count bigint,
+    total_referenced_count bigint,
+    flag_ratio numeric
+)
+language sql
+security definer
+set search_path = public
+as $$
+    with all_refs as (
+        select
+            src->>'source' as source,
+            (src->>'chunk_index')::int as chunk_index,
+            f.rating
+        from public.interaction_logs i
+        join public.response_feedback f
+            on f.request_id = i.request_id
+        cross join lateral jsonb_array_elements(
+            coalesce(i.sources, '[]'::jsonb)
+        ) as src
+        where i.timestamp >= now() - make_interval(days => days)
+    )
+    select
+        source,
+        chunk_index,
+        count(*) filter (where rating = 'down') as flagged_count,
+        count(*) as total_referenced_count,
+        round(
+            count(*) filter (where rating = 'down')::numeric
+            / nullif(count(*), 0),
+            2
+        ) as flag_ratio
+    from all_refs
+    where source is not null
+    group by source, chunk_index
+    having count(*) filter (where rating = 'down') > 0
+    order by flagged_count desc, flag_ratio desc
+    limit result_limit;
+$$;
+
+revoke execute on function public.get_flagged_documents(int, int) from anon, authenticated;
+grant execute on function public.get_flagged_documents(int, int) to service_role;
