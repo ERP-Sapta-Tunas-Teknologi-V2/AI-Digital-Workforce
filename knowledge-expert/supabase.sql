@@ -47,7 +47,8 @@ create or replace function public.hybrid_search(
     match_count int default 10,
     full_text_weight float default 1,
     semantic_weight float default 1,
-    rrf_k int default 10
+    rrf_k int default 10,
+    category_filter text[] default null
 )
 returns table (
     id bigint,
@@ -63,10 +64,7 @@ as $$
         select
             d.id,
             row_number() over (
-                order by ts_rank_cd(
-                    d.fts,
-                    query
-                ) desc
+                order by ts_rank_cd(d.fts, query) desc
             ) as rank_ix
         from public.documents d,
             lateral (
@@ -74,14 +72,12 @@ as $$
                     coalesce(
                         nullif(websearch_to_tsquery('simple', query_text), ''),
                         to_tsquery('simple',
-                            array_to_string(
-                                regexp_split_to_array(trim(query_text), '\s+'),
-                                ' | '
-                            )
+                            array_to_string(regexp_split_to_array(trim(query_text), '\s+'), ' | ')
                         )
                     ) as query
             ) q
         where d.fts @@ query
+          and (category_filter is null or d.metadata->>'category' = any(category_filter))
         order by rank_ix
         limit least(match_count, 30) * 2
     ),
@@ -94,6 +90,7 @@ as $$
             ) as rank_ix
         from public.documents d
         where d.embedding is not null
+          and (category_filter is null or d.metadata->>'category' = any(category_filter))
         order by d.embedding <=> query_embedding
         limit least(match_count, 30) * 2
     ),
@@ -101,37 +98,16 @@ as $$
     fused as (
         select
             coalesce(ft.id, sem.id) as id,
-
-            coalesce(
-                1.0 / (rrf_k + ft.rank_ix),
-                0.0
-            ) * full_text_weight
-
-            +
-
-            coalesce(
-                1.0 / (rrf_k + sem.rank_ix),
-                0.0
-            ) * semantic_weight
-
+            coalesce(1.0 / (rrf_k + ft.rank_ix), 0.0) * full_text_weight
+            + coalesce(1.0 / (rrf_k + sem.rank_ix), 0.0) * semantic_weight
             as hybrid_score
-
         from full_text ft
-
-        full outer join semantic sem
-            on ft.id = sem.id
+        full outer join semantic sem on ft.id = sem.id
     )
 
-    select
-        d.id,
-        d.content,
-        d.metadata,
-        d.chunk_index,
-        d.embedding,
-        fused.hybrid_score
+    select d.id, d.content, d.metadata, d.chunk_index, d.embedding, fused.hybrid_score
     from fused
-    join public.documents d
-        on d.id = fused.id
+    join public.documents d on d.id = fused.id
     order by fused.hybrid_score desc
     limit match_count;
 $$;

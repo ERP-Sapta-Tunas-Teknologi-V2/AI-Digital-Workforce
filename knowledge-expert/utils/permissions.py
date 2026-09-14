@@ -3,6 +3,15 @@ from flask import request, jsonify
 
 ALLOWED_ROLES = {"Marketing", "Product", "Admin"}
 
+CATEGORY_ACCESS = {
+    "sop": None,  # None = semua role
+    "datasheet": {"Sales", "Solution Architect"},
+    "pricelist": {"Sales"},
+    "guide": {"Solution Architect"},
+    "meeting": {"Sales"},
+    "training": None,
+}
+
 def require_role(*roles):
     def decorator(func):
         @wraps(func)
@@ -18,3 +27,14 @@ def require_role(*roles):
             return func(*args, **kwargs)
         return wrapper
     return decorator
+
+def get_allowed_categories(role):
+    """Return None jika tidak ada filter (role tidak dikirim), atau list kategori yang diizinkan."""
+
+    if role is None:
+        return None  # no filter — dipakai widget publik tanpa header
+
+    return [
+        cat for cat, allowed in CATEGORY_ACCESS.items()
+        if allowed is None or role in allowed
+    ]

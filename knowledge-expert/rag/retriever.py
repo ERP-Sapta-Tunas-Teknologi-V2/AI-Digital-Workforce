@@ -29,6 +29,8 @@ def expand_query(query):
 def hybrid_retrieve(
     question: str,
     request_id: str,
+    role: str = None,
+    allowed_categories: list[str] | None = None,
     candidate_k: int = 30,
     rerank_k: int = 3
 ) -> tuple[list[Document], str, int]:
@@ -51,9 +53,19 @@ def hybrid_retrieve(
         "query_embedding": query_embedding,
         "match_count": candidate_k,
         "rrf_k": 10,
+        "category_filter": allowed_categories,
     }).execute()
 
     search_time = time.perf_counter() - search_start
+
+    if allowed_categories is not None:
+        with open("log/log_rbac_audit.txt", "a", encoding="utf-8") as f:
+            f.write(
+                f"[{request_id}] RBAC_FILTER_APPLIED | "
+                f"role={role} | "
+                f"allowed_categories={allowed_categories} | "
+                f"candidates_returned={len(result.data or [])}\n"
+            )
 
     documents = []
 

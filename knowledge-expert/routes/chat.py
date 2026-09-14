@@ -10,9 +10,10 @@ from rag.chain import generate_answer
 from utils.extensions import limiter
 from utils.anonymizer import anonymize_query
 from utils.logger import log_query, log_chat_usage
+from utils.injection_patterns import INJECTION_PATTERNS
+from utils.permissions import get_allowed_categories
 from session.manager import SessionManager
 from session.contextualizer import contextualize_question
-from utils.injection_patterns import INJECTION_PATTERNS
 from config import OLLAMA_LLM
 
 session_manager = SessionManager()
@@ -71,6 +72,8 @@ def chat():
 
     data = request.get_json(silent=True)
 
+    role = request.headers.get("X-User-Role")
+
     if data is None:
         return jsonify({"error": "invalid JSON"}), 400
     if not isinstance(data, dict):
@@ -116,7 +119,10 @@ def chat():
     with open("log/log_time.txt", "a", encoding="utf-8") as f:
         f.write(f"[{request_id}] [LOGGING] total={log_time:.3f}s\n")
 
-    documents, context, embedding_tokens, embedding_model = hybrid_retrieve(contextual_question, request_id)
+    documents, context, embedding_tokens, embedding_model = hybrid_retrieve(
+        contextual_question, request_id, role, allowed_categories=get_allowed_categories(role)
+    )
+    
     usage["embedding_tokens"] = embedding_tokens
     usage["embedding_model"] = embedding_model
 
