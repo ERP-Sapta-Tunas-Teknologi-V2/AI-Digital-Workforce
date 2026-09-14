@@ -1467,12 +1467,7 @@ Endpoint:
 GET /api/logs/export
 ```
 
-Akses dibatasi untuk role:
-
-```text
-Marketing
-Product
-```
+Akses dibatasi untuk role `Admin`.
 
 Filter tanggal menggunakan:
 
@@ -1495,12 +1490,7 @@ Export menggunakan CSV UTF-8 BOM.
 
 Selain log export, tersedia endpoint analytics tambahan untuk kebutuhan reporting.
 
-Akses dibatasi untuk role:
-
-```text
-Marketing
-Product
-```
+Akses dibatasi untuk role `Admin`.
 
 ### Top FAQ
 

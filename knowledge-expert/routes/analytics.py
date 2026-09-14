@@ -21,7 +21,7 @@ def parse_date(value):
         raise ValueError("date must use YYYY-MM-DD format")
 
 @analytics_bp.route("/logs/export", methods=["GET"])
-@require_role("Marketing", "Product")
+@require_role("Admin")
 def export_logs():
     try:
         start = parse_date(request.args.get("start"))
@@ -50,7 +50,7 @@ def export_logs():
         return {"error": str(e)}, 400
 
 @analytics_bp.route("/logs/top-faq", methods=["GET"])
-@require_role("Marketing", "Product")
+@require_role("Admin")
 def top_faq():
     days = request.args.get("days", 30, type=int)
     limit = request.args.get("limit", 5, type=int)
@@ -66,7 +66,7 @@ def top_faq():
     return jsonify(result.data or [])
 
 @analytics_bp.route("/cost/daily", methods=["GET"])
-@require_role("Marketing", "Product")
+@require_role("Admin")
 def daily_cost():
     report_date = request.args.get("date")
     params = {}
@@ -84,7 +84,7 @@ def daily_cost():
     return jsonify(data)
 
 @analytics_bp.route("/cost/weekly", methods=["GET"])
-@require_role("Marketing", "Product")
+@require_role("Admin")
 def weekly_cost():
     end_date = request.args.get("date")
     params = {}
@@ -101,6 +101,6 @@ def weekly_cost():
     return jsonify({"data": result.data or []})
 
 @analytics_bp.route("/cost/budget", methods=["GET"])
-@require_role("Marketing", "Product")
+@require_role("Admin")
 def cost_budget():
     return jsonify(check_budget())

@@ -305,10 +305,7 @@ Akses terhadap retention data harus mengikuti principle of least privilege.
 
 ### Query Logs
 
-Akses analytics/export dibatasi kepada role yang memiliki kebutuhan bisnis yang sah, khususnya:
-
-* Marketing
-* Product
+Akses analytics/export dibatasi kepada role yang memiliki kebutuhan bisnis yang sah, khususnya `Admin`.
 
 ### Usage Logs
 

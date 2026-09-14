@@ -1,7 +1,7 @@
 from functools import wraps
 from flask import request, jsonify
 
-ALLOWED_ROLES = {"Marketing", "Product", "Admin"}
+ALLOWED_ROLES = {"Admin"}
 
 CATEGORY_ACCESS = {
     "sop": None,  # None = semua role

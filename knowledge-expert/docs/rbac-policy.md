@@ -14,8 +14,6 @@ Kedua area ini independen. Role yang punya akses endpoint tertentu tidak otomati
 ## 2. Daftar Role
 
 ```text
-Marketing
-Product
 Admin
 Sales
 Solution Architect
@@ -44,11 +42,11 @@ Berlaku untuk endpoint yang menggunakan decorator `require_role`.
 | `/api/admin/documents/delete` | DELETE | Admin |
 | `/api/admin/documents/download` | GET | Admin |
 | `/api/admin/sync` | POST | Admin |
-| `/api/logs/export` | GET | Marketing, Product |
-| `/api/logs/top-faq` | GET | Marketing, Product |
-| `/api/cost/daily` | GET | Marketing, Product |
-| `/api/cost/weekly` | GET | Marketing, Product |
-| `/api/cost/budget` | GET | Marketing, Product |
+| `/api/logs/export` | GET | Admin |
+| `/api/logs/top-faq` | GET | Admin |
+| `/api/cost/daily` | GET | Admin |
+| `/api/cost/weekly` | GET | Admin |
+| `/api/cost/budget` | GET | Admin |
 | `/api/chat` | POST | Public (tidak dibatasi role) |
 
 ### Response Tanpa Role

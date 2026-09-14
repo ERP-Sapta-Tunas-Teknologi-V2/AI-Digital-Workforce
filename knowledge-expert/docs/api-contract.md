@@ -433,11 +433,11 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | `/api/chat`             | POST   | Public          |
 | `/api/admin/ingest`     | POST   | Admin           |
 | `/api/admin/sync`       | POST   | Admin           |
-| `/api/logs/export`      | GET    | Marketing, Product |
-| `/api/logs/top-faq`     | GET    | Marketing, Product |
-| `/api/cost/daily`       | GET    | Marketing, Product |
-| `/api/cost/weekly`      | GET    | Marketing, Product |
-| `/api/cost/budget`      | GET    | Marketing, Product |
+| `/api/logs/export`      | GET    | Admin           |
+| `/api/logs/top-faq`     | GET    | Admin           |
+| `/api/cost/daily`       | GET    | Admin           |
+| `/api/cost/weekly`      | GET    | Admin           |
+| `/api/cost/budget`      | GET    | Admin           |
 | `/`                     | GET    | Public          |
 
 ## POST /api/admin/ingest
@@ -602,12 +602,7 @@ Endpoint untuk mengekspor query log dalam format CSV.
 
 ### Akses
 
-Dibatasi untuk role:
-
-```text
-Marketing
-Product
-```
+Dibatasi untuk role `Admin`.
 
 ### Request
 
@@ -655,12 +650,7 @@ Endpoint untuk mendapatkan pertanyaan yang paling sering diajukan (top FAQ).
 
 ### Akses
 
-Dibatasi untuk role:
-
-```text
-Marketing
-Product
-```
+Dibatasi untuk role `Admin`.
 
 ### Request
 
@@ -696,12 +686,7 @@ Endpoint untuk mendapatkan laporan biaya (cost) harian.
 
 ### Akses
 
-Dibatasi untuk role:
-
-```text
-Marketing
-Product
-```
+Dibatasi untuk role `Admin`.
 
 ### Request
 
@@ -734,12 +719,7 @@ Endpoint untuk mendapatkan laporan biaya (cost) mingguan.
 
 ### Akses
 
-Dibatasi untuk role:
-
-```text
-Marketing
-Product
-```
+Dibatasi untuk role `Admin`.
 
 ### Request
 
@@ -776,12 +756,7 @@ Endpoint untuk memeriksa status penggunaan budget saat ini.
 
 ### Akses
 
-Dibatasi untuk role:
-
-```text
-Marketing
-Product
-```
+Dibatasi untuk role `Admin`.
 
 ### Request
 
