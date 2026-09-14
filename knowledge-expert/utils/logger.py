@@ -25,6 +25,17 @@ def update_interaction_response(request_id, answer, sources):
     except Exception as e:
         print(f"[LOGGING] update failed: {e}")
 
+def log_feedback(request_id, rating, reason=None):
+    try:
+        supabase.table("response_feedback").insert({
+            "request_id": request_id,
+            "rating": rating,
+            "reason": reason
+        }, returning="minimal").execute()
+    except Exception as e:
+        print(f"[FEEDBACK] failed: {e}")
+        raise
+
 def log_index_usage(emb_model, embedding_tokens=0):
     try:
         emb_cost = calculate_emb_cost(emb_model, embedding_tokens)

@@ -9,7 +9,7 @@ from rag.retriever import hybrid_retrieve
 from rag.chain import generate_answer
 from utils.extensions import limiter
 from utils.anonymizer import anonymize_query
-from utils.logger import log_query, log_chat_usage, update_interaction_response
+from utils.logger import log_query, log_chat_usage, update_interaction_response, log_feedback
 from utils.injection_patterns import INJECTION_PATTERNS
 from utils.permissions import get_allowed_categories
 from session.manager import SessionManager
@@ -145,6 +145,7 @@ def chat():
         yield f"data: {json.dumps({
             'type': 'metadata',
             'session_id': session_id,
+            'request_id': request_id,
             'sources': sources,
             'fallback': False
         }, ensure_ascii=False)}\n\n"
@@ -228,6 +229,30 @@ def chat():
         mimetype="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"}
     )
+
+@chat_bp.route("/feedback", methods=["POST"])
+def feedback():
+    data = request.get_json(silent=True) or {}
+
+    request_id = data.get("request_id")
+    rating = data.get("rating")
+    reason = data.get("reason")
+
+    if not request_id or not isinstance(request_id, str):
+        return jsonify({"error": "request_id is required"}), 400
+
+    if rating not in {"up", "down"}:
+        return jsonify({"error": "rating must be 'up' or 'down'"}), 400
+
+    if reason is not None and not isinstance(reason, str):
+        return jsonify({"error": "reason must be a string"}), 400
+
+    try:
+        log_feedback(request_id, rating, reason)
+    except Exception:
+        return jsonify({"error": "failed to record feedback"}), 500
+
+    return jsonify({"message": "feedback recorded"}), 201
 
 @chat_bp.route("/rate-limit-test", methods=["GET"])
 @limiter.limit("10 per minute")

@@ -5,6 +5,7 @@ const messages = document.getElementById("messages");
 
 let isLoading = false;
 let sessionId = null;
+let lastRequestId = null;
 
 function addMessage(text, type) {
     const el = document.createElement("div");
@@ -28,6 +29,57 @@ function setLoading(loading) {
     isLoading = loading;
     button.disabled = loading;
     button.textContent = loading ? "Menunggu..." : "Kirim";
+}
+
+function addFeedbackControls(bot, requestId) {
+    const wrap = document.createElement("div");
+    wrap.className = "feedback";
+
+    const up = document.createElement("button");
+    up.textContent = "👍";
+    up.type = "button";
+
+    const down = document.createElement("button");
+    down.textContent = "👎";
+    down.type = "button";
+
+    const status = document.createElement("span");
+    status.className = "feedback-status";
+
+    up.addEventListener("click", () => {
+        const reason = prompt("Tuliskan alasan dari feedback Anda (opsional)");
+        submitFeedback(requestId, "up", reason || null, wrap, status);
+    });
+    down.addEventListener("click", () => {
+        const reason = prompt("Tuliskan alasan dari feedback Anda (opsional)");
+        submitFeedback(requestId, "down", reason || null, wrap, status);
+    });
+
+    wrap.appendChild(up);
+    wrap.appendChild(down);
+    wrap.appendChild(status);
+    bot.appendChild(wrap);
+}
+
+async function submitFeedback(requestId, rating, reason, wrap, status) {
+    wrap.querySelectorAll("button").forEach(b => b.disabled = true);
+
+    try {
+        const response = await fetch("/api/feedback", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({request_id: requestId, rating, reason})
+        });
+
+        if (!response.ok) {
+            throw new Error();
+        }
+
+        status.textContent = "Terima kasih atas feedback Anda.";
+    } catch {
+        status.textContent = "Gagal mengirim feedback.";
+        wrap.querySelectorAll("button").forEach(b => b.disabled = false);
+    }
 }
 
 form.addEventListener("submit", async e => {
@@ -105,6 +157,7 @@ form.addEventListener("submit", async e => {
                 if (data.type === "metadata") {
                     sessionId = data.session_id;
                     sources = data.sources || [];
+                    lastRequestId = data.request_id;
                 }
 
                 if (data.type === "token") {
@@ -141,6 +194,10 @@ form.addEventListener("submit", async e => {
                         });
 
                         bot.appendChild(sourceEl);
+                    }
+
+                    if (lastRequestId) {
+                        addFeedbackControls(bot, lastRequestId);
                     }
                 }
             }

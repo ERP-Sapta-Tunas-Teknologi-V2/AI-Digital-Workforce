@@ -116,3 +116,24 @@ input:disabled{
         opacity:1;
     }
 }
+
+.feedback{
+    margin-top:8px;
+    display:flex;
+    align-items:center;
+    gap:6px
+}
+
+.feedback button{
+    background:none;
+    border:1px solid #ddd;
+    border-radius:6px;
+    padding:4px 8px;
+    font-size:13px;
+    cursor:pointer
+}
+
+.feedback-status{
+    font-size:12px;
+    color:#888
+}

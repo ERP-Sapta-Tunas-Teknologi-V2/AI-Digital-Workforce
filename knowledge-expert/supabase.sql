@@ -547,3 +547,25 @@ alter table public.document_flags enable row level security;
 
 create policy "Allow service_role all on document_flags" on public.document_flags for all
 to service_role using (true) with check (true);
+
+create table public.response_feedback (
+    id bigserial primary key,
+    request_id text not null references public.interaction_logs(request_id) on delete cascade,
+    rating text not null check (rating in ('up', 'down')),
+    reason text,
+    created_at timestamptz default now()
+);
+
+create index idx_response_feedback_request_id on public.response_feedback(request_id);
+create index idx_response_feedback_rating on public.response_feedback(rating);
+
+grant select, insert on public.response_feedback to service_role;
+grant usage, select on all sequences in schema public to service_role;
+
+alter table public.response_feedback enable row level security;
+
+create policy "Allow service_role all on response_feedback" on public.response_feedback
+for all
+to service_role
+using (true)
+with check (true);
