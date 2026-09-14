@@ -4,6 +4,7 @@ const button = form.querySelector("button");
 const messages = document.getElementById("messages");
 
 let isLoading = false;
+let sessionId = null;
 
 function addMessage(text, type) {
     const el = document.createElement("div");
@@ -52,7 +53,7 @@ form.addEventListener("submit", async e => {
         const response = await fetch("/api/chat", {
             method: "POST",
             headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({question})
+            body: JSON.stringify({question, session_id: sessionId})
         });
 
         if (!response.ok) {
@@ -68,6 +69,7 @@ form.addEventListener("submit", async e => {
 
         if (contentType.includes("application/json")) {
             const data = await response.json();
+            sessionId = data.session_id;
             bot.className = "message bot";
             bot.textContent = data.answer;
             return;
@@ -101,6 +103,7 @@ form.addEventListener("submit", async e => {
                 const data = JSON.parse(event.slice(6));
 
                 if (data.type === "metadata") {
+                    sessionId = data.session_id;
                     sources = data.sources || [];
                 }
 
@@ -120,24 +123,26 @@ form.addEventListener("submit", async e => {
                     answer = data.content;
                 }
 
-                // if (data.type === "done") {
-                //     if (sources.length) {
-                //         const sourceEl = document.createElement("div");
-                //         sourceEl.className = "sources";
+                if (data.type === "done") {
+                    if (sources.length) {
+                        const sourceEl = document.createElement("div");
+                        sourceEl.className = "sources";
 
-                //         const title = document.createElement("b");
-                //         title.textContent = "Sumber:";
-                //         sourceEl.appendChild(title);
+                        const title = document.createElement("b");
+                        title.textContent = "Sumber:";
+                        sourceEl.appendChild(title);
 
-                //         sources.slice(0, 3).forEach(source => {
-                //             const item = document.createElement("div");
-                //             item.textContent = source.source || "Dokumen";
-                //             sourceEl.appendChild(item);
-                //         });
+                        sources.slice(0, 3).forEach(source => {
+                            const item = document.createElement("div");
+                            const name = source.source || "Dokumen";
+                            const page = source.page ? ` [Halaman ${source.page}]` : "";
+                            item.textContent = `${name}${page}`;
+                            sourceEl.appendChild(item);
+                        });
 
-                //         bot.appendChild(sourceEl);
-                //     }
-                // }
+                        bot.appendChild(sourceEl);
+                    }
+                }
             }
         }
     } catch (error) {

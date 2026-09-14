@@ -105,7 +105,11 @@ def hybrid_retrieve(
         # if document.metadata["rerank_score"] >= RERANK_THRESHOLD
     ]
 
-    context = "\n\n".join(document.page_content for document in documents)
+    context = "\n\n".join(
+        f"tanggal efektif: {document.metadata.get('uploaded_at', '')[:10]}\n"
+        f"{document.page_content}"
+        for document in documents
+    )
 
     total_time = time.perf_counter() - start
 
