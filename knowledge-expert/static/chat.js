@@ -124,6 +124,11 @@ form.addEventListener("submit", async e => {
             sessionId = data.session_id;
             bot.className = "message bot";
             bot.textContent = data.answer;
+
+            if (data.request_id) {
+                addFeedbackControls(bot, data.request_id);
+            }
+
             return;
         }
 

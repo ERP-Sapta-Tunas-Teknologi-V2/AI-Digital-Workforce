@@ -114,7 +114,7 @@ def chat():
     }
 
     log_start = time.perf_counter()
-    Thread(target=log_query_background, args=(safe_query, anon_id, request_id, session_id), daemon=True).start()
+    log_query_background(safe_query, anon_id, request_id, session_id)
     log_time = time.perf_counter() - log_start
     with open("log/log_time.txt", "a", encoding="utf-8") as f:
         f.write(f"[{request_id}] [LOGGING] total={log_time:.3f}s\n")
@@ -132,6 +132,7 @@ def chat():
         Thread(target=update_interaction_response, args=(request_id, answer, []), daemon=True).start()
         return jsonify({
             "session_id": session_id,
+            "request_id": request_id,
             "question": safe_query,
             "answer": answer,
             "context": "",
@@ -231,6 +232,7 @@ def chat():
     )
 
 @chat_bp.route("/feedback", methods=["POST"])
+@limiter.limit("20 per minute")
 def feedback():
     data = request.get_json(silent=True) or {}
 
@@ -249,6 +251,8 @@ def feedback():
 
     try:
         log_feedback(request_id, rating, reason)
+    except ValueError:
+        return jsonify({"error": "request_id not found"}), 404
     except Exception:
         return jsonify({"error": "failed to record feedback"}), 500
 

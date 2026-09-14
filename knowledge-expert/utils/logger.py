@@ -1,4 +1,3 @@
-import time
 from utils.supabase_admin import supabase
 from utils.cost_calculator import calculate_cost, calculate_emb_cost
 
@@ -18,21 +17,27 @@ def log_query(query, anon_id, request_id=None, session_id=None):
 
 def update_interaction_response(request_id, answer, sources):
     try:
-        supabase.table("interaction_logs").update({
+        result = supabase.table("interaction_logs").update({
             "answer": answer,
             "sources": sources
         }).eq("request_id", request_id).execute()
+
+        if not result.data:
+            print(f"[LOGGING] update matched no row for request_id={request_id} — insert may have failed")
     except Exception as e:
         print(f"[LOGGING] update failed: {e}")
 
 def log_feedback(request_id, rating, reason=None):
     try:
-        supabase.table("response_feedback").insert({
+        supabase.table("response_feedback").upsert({
             "request_id": request_id,
             "rating": rating,
             "reason": reason
-        }, returning="minimal").execute()
+        }, on_conflict="request_id").execute()
     except Exception as e:
+        error_str = str(e)
+        if "foreign key" in error_str.lower() or "23503" in error_str:
+            raise ValueError("request_id not found")
         print(f"[FEEDBACK] failed: {e}")
         raise
 
