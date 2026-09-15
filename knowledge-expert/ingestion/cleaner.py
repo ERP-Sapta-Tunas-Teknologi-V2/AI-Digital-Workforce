@@ -2,9 +2,10 @@ import pymupdf
 import pymupdf4llm
 import re
 import tempfile
-from pathlib import Path
 import subprocess
 import platform
+from pathlib import Path
+from ingestion.image import describe_image
 
 def _get_libreoffice_command():
     if platform.system() == "Windows":
@@ -30,6 +31,16 @@ def _remove_conversion_artifacts(markdown):
     markdown = re.sub(r"\n{3,}", "\n\n", markdown)
 
     return markdown
+
+def extract_images(page):
+    images = []
+
+    for image in page.get_images(full=True):
+        xref = image[0]
+        data = page.parent.extract_image(xref)
+        images.append(data["image"])
+
+    return images
 
 def docx_to_pdf(docx_path, pdf_path):
     print("Converting .docx to .pdf")
@@ -65,12 +76,20 @@ def docx_to_pdf(docx_path, pdf_path):
 
 def pdf_to_md(pdf_path):
     print("Converting .pdf to .md")
-    pdf = pymupdf.open(pdf_path)
     pages = []
-    for page_number in range(len(pdf)):
-        markdown = pymupdf4llm.to_markdown(pdf, pages=[page_number])
-        pages.append({"page": page_number + 1, "markdown": markdown})
-    pdf.close()
+
+    with pymupdf.open(pdf_path) as pdf:
+        for page_number, page in enumerate(pdf):
+            print(f"\nPage {page_number + 1}")
+            markdown = pymupdf4llm.to_markdown(pdf, pages=[page_number])
+
+            # # image-to-text
+            # for image_bytes in extract_images(page):
+            #     print("image-to-text")
+            #     markdown += "\n\n" + describe_image(image_bytes)
+
+            pages.append({"page": page_number + 1, "markdown": markdown})
+            
     return pages
 
 def clean_md(markdown):

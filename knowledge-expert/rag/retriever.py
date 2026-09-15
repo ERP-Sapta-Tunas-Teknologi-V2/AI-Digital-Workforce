@@ -30,7 +30,7 @@ RETRIEVAL_STOPWORDS = {
     # Indonesian
     "apa", "apakah", "berapa", "siapa", "dimana", "di mana", "mana",
     "kapan", "mengapa", "kenapa", "bagaimana", "dan", "dari",
-    "tolong", "mohon", "bisa", "dapatkah", "ini", "itu"
+    "tolong", "mohon", "bisa", "dapatkah", "ini", "itu", "yang"
 
     # English
     "what", "is", "are", "do", "does", "did",
