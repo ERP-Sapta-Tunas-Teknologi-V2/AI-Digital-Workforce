@@ -26,6 +26,24 @@ def expand_query(query):
 
     return " ".join(parts)
 
+RETRIEVAL_STOPWORDS = {
+    # Indonesian
+    "apa", "apakah", "berapa", "siapa", "dimana", "di mana", "mana",
+    "kapan", "mengapa", "kenapa", "bagaimana", "dan", "dari",
+    "tolong", "mohon", "bisa", "dapatkah", "ini", "itu"
+
+    # English
+    "what", "is", "are", "do", "does", "did",
+    "how", "why", "when", "where", "who", "of",
+    "which", "can", "could", "would", "should",
+    "please", "this", "that", "which", "and"
+}
+
+def clean_retrieval_query(question):
+    words = question.split()
+    words = [w for w in words if w.lower().strip("?!.,") not in RETRIEVAL_STOPWORDS]
+    return " ".join(words)
+
 def hybrid_retrieve(
     question: str,
     request_id: str,
@@ -41,6 +59,9 @@ def hybrid_retrieve(
     expanded_question = expand_query(question)
     print("expanded_question:", expanded_question)
 
+    retrieval_question = clean_retrieval_query(expanded_question)
+    print("retrieval_question:", retrieval_question)
+
     embedding_model = EMBEDDING_MODEL
     embedding_tokens = count_embedding_tokens(question)
     query_embedding = embeddings.embed_query(question)
@@ -49,7 +70,7 @@ def hybrid_retrieve(
     search_start = time.perf_counter()
 
     result = supabase.rpc("hybrid_search", {
-        "query_text": expanded_question,
+        "query_text": retrieval_question,
         "query_embedding": query_embedding,
         "match_count": candidate_k,
         "rrf_k": 10,
