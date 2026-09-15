@@ -46,18 +46,28 @@ Menyimpan chunk hasil indexing beserta embedding-nya. Digunakan untuk retrieval 
 
 ## `interaction_logs`
 
-Mencatat setiap pertanyaan user (setelah anonymization), jawaban chatbot, dan dokumen/chunk yang dirujuk (`sources`) untuk keperluan analytics seperti Top FAQ, identifikasi jawaban bermasalah, dan identifikasi dokumen yang perlu direvisi.
+Mencatat setiap pertanyaan user (setelah anonymization), jawaban chatbot, dokumen/chunk yang dirujuk (`sources`), dan status pemrosesan request untuk keperluan analytics seperti Top FAQ, identifikasi jawaban bermasalah, dan identifikasi dokumen yang perlu direvisi.
 
 | Column       | Type         | Nullable | Default           | Description                                                              |
 | ------------ | ------------ | -------- | ------------------- | --------------------------------------------------------------------------- |
 | `id`         | bigint       | No       | identity            | Primary key.                                                                |
-| `request_id` | text         | Yes      | -                    | ID unik per request `/api/chat`, dipakai untuk korelasi dengan usage log dan feedback. |
-| `session_id` | text         | Yes      | -                    | ID sesi percakapan (lihat [`session.md`](../kebijakan/session.md)).                     |
+| `request_id` | text         | No      | -                    | ID unik per request `/api/chat`, dipakai untuk korelasi dengan usage log dan feedback. |
+| `session_id` | text         | No      | -                    | ID sesi percakapan (lihat [`session.md`](../kebijakan/session.md)).                     |
 | `query`      | text         | No       | -                    | Pertanyaan user, sudah melalui anonymization (PII diganti placeholder).    |
 | `answer`     | text         | Yes      | -                    | Jawaban chatbot untuk request tersebut, diisi asynchronous setelah streaming selesai. |
 | `sources`    | jsonb        | Yes      | -                    | Array metadata chunk yang dirujuk untuk menghasilkan jawaban.               |
+| `status`     | text        | No       | `'started'` | Status pemrosesan request: `started`, `completed`, `fallback`, atau `failed`.          |
 | `timestamp`  | timestamptz  | No       | `now()`              | Waktu query diterima.                                                       |
 | `anon_id`    | uuid         | No       | -                    | Identifier anonim per request (bukan identitas user asli).                 |
+
+**Status constraint:**
+
+Kolom `status` memiliki constraint `interaction_logs_status_check` yang hanya mengizinkan nilai:
+
+* `started` — request diterima dan sedang diproses.
+* `completed` — request berhasil menghasilkan jawaban.
+* `fallback` — informasi tidak ditemukan dalam knowledge base sehingga fallback response diberikan.
+* `failed` — request gagal diproses.
 
 **Index & constraint:**
 
@@ -65,6 +75,8 @@ Mencatat setiap pertanyaan user (setelah anonymization), jawaban chatbot, dan do
 | ------------------------------------------ | ------------- | -------------- | ----------------------------------------------- |
 | `idx_interaction_logs_timestamp`           | index         | `timestamp`    | Mempercepat query berbasis rentang waktu.       |
 | `interaction_logs_request_id_unique`       | unique index  | `request_id`   | Satu `request_id` hanya satu baris.             |
+| `interaction_logs_status_check`      | check constraint | `status`     | Membatasi status ke `started`, `completed`, `fallback`, atau `failed`. |
+
 
 **Access control:** RLS aktif. Role `anon` hanya boleh `insert` (policy `Allow anon insert query logs`). Role `service_role` punya `select`, `insert`, `update` (dipakai untuk mengisi `answer` dan `sources` setelah streaming selesai).
 

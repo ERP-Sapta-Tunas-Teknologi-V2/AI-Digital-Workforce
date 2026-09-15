@@ -41,10 +41,7 @@ def validate_query(question):
     return None
 
 def log_query_background(query, anon_id, request_id, session_id):
-    try:
-        return log_query(query, anon_id, request_id, session_id)
-    except Exception as e:
-        print(f"[LOGGING] failed: {e}")
+    return log_query(query, anon_id, request_id, session_id)
 
 def log_usage_background(request_id, anon_id, embedding_model, embedding_tokens, llm_input_tokens, llm_output_tokens):
     try:
@@ -119,9 +116,17 @@ def chat():
     with open("log/log_time.txt", "a", encoding="utf-8") as f:
         f.write(f"[{request_id}] [LOGGING] total={log_time:.3f}s\n")
 
-    documents, context, embedding_tokens, embedding_model = hybrid_retrieve(
-        contextual_question, request_id, role, allowed_categories=get_allowed_categories(role)
-    )
+    try:
+        documents, context, embedding_tokens, embedding_model = hybrid_retrieve(
+            contextual_question, request_id, role, allowed_categories=get_allowed_categories(role)
+        )
+    except Exception as error:
+        Thread(
+            target=update_interaction_response,
+            args=(request_id, "Request gagal diproses.", [], "failed"),
+            daemon=True
+        ).start()
+        return jsonify({"error": "failed to process request"}), 500
     
     usage["embedding_tokens"] = embedding_tokens
     usage["embedding_model"] = embedding_model
@@ -129,7 +134,7 @@ def chat():
     if not documents:
         answer = "Informasi tidak ditemukan dalam knowledge base. Silakan hubungi kontak kami."
         session_manager.add_message(session_id, "assistant", answer)
-        Thread(target=update_interaction_response, args=(request_id, answer, []), daemon=True).start()
+        Thread(target=update_interaction_response, args=(request_id, answer, [], "fallback"), daemon=True).start()
         return jsonify({
             "session_id": session_id,
             "request_id": request_id,
@@ -155,26 +160,37 @@ def chat():
         first_token_time = None
         full_answer = []
 
-        stream = generate_answer(safe_query, context)
+        try:
+            stream = generate_answer(safe_query, context)
 
-        for chunk in stream:
-            metadata = getattr(chunk, "usage_metadata", None)
+            for chunk in stream:
+                metadata = getattr(chunk, "usage_metadata", None)
 
-            if metadata:
-                usage["llm_input_tokens"] = metadata.get("input_tokens", 0)
-                usage["llm_output_tokens"] = metadata.get("output_tokens", 0)
+                if metadata:
+                    usage["llm_input_tokens"] = metadata.get("input_tokens", 0)
+                    usage["llm_output_tokens"] = metadata.get("output_tokens", 0)
 
-            content = chunk.content
+                content = chunk.content
 
-            if not content:
-                continue
+                if not content:
+                    continue
 
-            if first_token_time is None:
-                first_token_time = time.perf_counter() - llm_start
+                if first_token_time is None:
+                    first_token_time = time.perf_counter() - llm_start
 
-            full_answer.append(content)
+                full_answer.append(content)
 
-            yield f"data: {json.dumps({'type': 'token', 'content': content}, ensure_ascii=False)}\n\n"
+                yield f"data: {json.dumps({'type': 'token', 'content': content}, ensure_ascii=False)}\n\n"
+
+        except Exception as error:
+            Thread(
+                target=update_interaction_response,
+                args=(request_id, "Request gagal diproses.", [], "failed"),
+                daemon=True
+            ).start()
+
+            yield f"data: {json.dumps({'type': 'error', 'content': 'Request gagal diproses.'}, ensure_ascii=False)}\n\n"
+            return
 
         llm_time = time.perf_counter() - llm_start
         total_time = time.perf_counter() - request_start
@@ -182,7 +198,7 @@ def chat():
         answer = "".join(full_answer)
 
         session_manager.add_message(session_id, "assistant", answer)
-        Thread(target=update_interaction_response, args=(request_id, answer, sources), daemon=True).start()
+        Thread(target=update_interaction_response, args=(request_id, answer, sources, "completed"), daemon=True).start()
 
         Thread(
             target=log_usage_background,

@@ -129,11 +129,12 @@ create policy "Allow delete documents" on public.documents for delete to anon us
 drop table if exists public.interaction_logs;
 create table public.interaction_logs (
     id bigint generated always as identity primary key,
-    request_id text,
-    session_id text,
+    request_id text not null,
+    session_id text not null,
     query text not null,
     answer text,
     sources jsonb,
+    status text not null default 'started',
     timestamp timestamptz not null default now(),
     anon_id uuid not null
 );
@@ -184,6 +185,9 @@ create unique index interaction_logs_request_id_unique on public.interaction_log
 alter database postgres set timezone = 'Asia/Jakarta';
 
 alter table public.interaction_logs enable row level security;
+
+alter table public.interaction_logs add constraint interaction_logs_status_check
+check (status in ('started', 'completed', 'fallback', 'failed'));
 
 create or replace function public.get_top_faq(
     days int default 30,
