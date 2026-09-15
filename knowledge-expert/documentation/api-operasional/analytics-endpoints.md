@@ -57,4 +57,26 @@ GET /api/analytics/flagged-documents?days=30&limit=20
 
 Mengembalikan daftar dokumen yang paling sering dirujuk pada jawaban yang mendapat downvote, beserta rasio downvote terhadap total kemunculan dokumen tersebut pada jawaban berfeedback. Digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi.
 
+## Dashboard Summary
+
+```http
+GET /api/analytics/dashboard-summary?days=30
+```
+
+Mengembalikan ringkasan data untuk dashboard monitoring, meliputi volume query harian, total query, jumlah feedback, tingkat feedback positif, dan dokumen yang paling sering dirujuk.
+
+| Parameter | Default | Description                            |
+| --------- | ------: | -------------------------------------- |
+| `days`    |      30 | Rentang hari ke belakang yang dihitung |
+
+Field utama pada response:
+
+| Field                      | Description                                         |
+| -------------------------- | --------------------------------------------------- |
+| `query_volume`             | Volume query per hari dalam periode yang dipilih    |
+| `total_queries`            | Total query dalam periode                           |
+| `total_feedback`           | Total feedback yang diberikan                       |
+| `positive_feedback_rate`   | Persentase feedback positif (`up`)                  |
+| `top_referenced_documents` | Daftar hingga 10 dokumen yang paling sering dirujuk |
+
 Detail lengkap request/response setiap endpoint di atas tersedia pada [`api-contract.md`](api-contract.md).

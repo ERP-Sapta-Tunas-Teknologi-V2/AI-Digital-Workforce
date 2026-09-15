@@ -686,3 +686,85 @@ $$;
 
 revoke execute on function public.get_flagged_documents(int, int) from anon, authenticated;
 grant execute on function public.get_flagged_documents(int, int) to service_role;
+
+create or replace function public.get_dashboard_summary(
+    days int default 30
+)
+returns table (
+    query_volume jsonb,
+    total_queries bigint,
+    total_feedback bigint,
+    positive_feedback_rate numeric,
+    top_referenced_documents jsonb
+)
+language sql
+security definer
+set search_path = public
+as $$
+    with volume as (
+        select
+            i.timestamp::date as report_date,
+            count(*) as total
+        from public.interaction_logs i
+        where i.timestamp >= now() - make_interval(days => days)
+        group by i.timestamp::date
+        order by report_date
+    ),
+
+    feedback_summary as (
+        select
+            count(*) as total_feedback,
+            count(*) filter (where rating = 'up') as total_up
+        from public.response_feedback f
+        join public.interaction_logs i on i.request_id = f.request_id
+        where i.timestamp >= now() - make_interval(days => days)
+    ),
+
+    doc_refs as (
+        select
+            src->>'source' as source,
+            max(src->>'category') as category,
+            count(*) as referenced_count
+        from public.interaction_logs i
+        cross join lateral jsonb_array_elements(coalesce(i.sources, '[]'::jsonb)) as src
+        where i.timestamp >= now() - make_interval(days => days)
+          and src->>'source' is not null
+        group by src->>'source'
+        order by referenced_count desc
+        limit 10
+    )
+
+    select
+        (
+            select coalesce(jsonb_agg(jsonb_build_object(
+                'date', report_date,
+                'total', total
+            ) order by report_date), '[]'::jsonb)
+            from volume
+        ) as query_volume,
+
+        (select coalesce(sum(total), 0) from volume) as total_queries,
+
+        (select total_feedback from feedback_summary) as total_feedback,
+
+        (
+            select case
+                when total_feedback > 0
+                    then round(total_up::numeric / total_feedback * 100, 2)
+                else 0
+            end
+            from feedback_summary
+        ) as positive_feedback_rate,
+
+        (
+            select coalesce(jsonb_agg(jsonb_build_object(
+                'source', source,
+                'category', category,
+                'referenced_count', referenced_count
+            )), '[]'::jsonb)
+            from doc_refs
+        ) as top_referenced_documents;
+$$;
+
+revoke execute on function public.get_dashboard_summary(int) from anon, authenticated;
+grant execute on function public.get_dashboard_summary(int) to service_role;

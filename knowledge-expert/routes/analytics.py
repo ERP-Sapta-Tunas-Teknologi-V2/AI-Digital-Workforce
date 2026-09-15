@@ -138,3 +138,17 @@ def flagged_documents():
     ).execute()
 
     return jsonify(result.data or [])
+
+@analytics_bp.route("/analytics/dashboard-summary", methods=["GET"])
+@require_role("Admin")
+def dashboard_summary():
+    days = request.args.get("days", 30, type=int)
+
+    result = (
+        supabase
+        .rpc("get_dashboard_summary", {"days": days})
+        .execute()
+    )
+
+    data = result.data[0] if result.data else {}
+    return jsonify(data)
