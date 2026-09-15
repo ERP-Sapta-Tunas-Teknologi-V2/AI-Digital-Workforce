@@ -24,6 +24,10 @@ Context:
 <context>{context}</context>
 
 Jika pertanyaan tentang pricelist atau harga, berikan tanggal efektif di jawaban.
+Setiap informasi faktual harus diberi sitasi dari sumber yang mendukungnya. 
+Gunakan format sitasi [1], [2], dan seterusnya. 
+Hanya gunakan sitasi yang tersedia dalam context. 
+Jangan mencantumkan sitasi dari sumber yang tidak digunakan untuk mendukung jawaban.
 
 Pertanyaan pengguna:
 <pertanyaan>{question}</pertanyaan>

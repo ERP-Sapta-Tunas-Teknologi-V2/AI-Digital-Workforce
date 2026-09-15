@@ -6,6 +6,7 @@ const messages = document.getElementById("messages");
 let isLoading = false;
 let sessionId = null;
 let lastRequestId = null;
+let sources = [];
 
 function addMessage(text, type) {
     const el = document.createElement("div");
@@ -181,6 +182,10 @@ form.addEventListener("submit", async e => {
                     answer = data.content;
                 }
 
+                if (data.type === "sources") {
+                    sources = data.sources || [];
+                }
+
                 if (data.type === "done") {
                     if (sources.length) {
                         const sourceEl = document.createElement("div");
@@ -190,11 +195,12 @@ form.addEventListener("submit", async e => {
                         title.textContent = "Sumber:";
                         sourceEl.appendChild(title);
 
-                        sources.slice(0, 3).forEach(source => {
+                        sources.forEach(source => {
                             const item = document.createElement("div");
+                            const index = `[${source.citation}] `
                             const name = source.source || "Dokumen";
                             const page = source.page ? ` [Halaman ${source.page}]` : "";
-                            item.textContent = `${name}${page}`;
+                            item.textContent = `${index}${name}${page}`;
                             sourceEl.appendChild(item);
                         });
 

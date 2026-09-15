@@ -40,6 +40,9 @@ def validate_query(question):
 
     return None
 
+def extract_citations(answer):
+    return set(re.findall(r"\[(\d+)\]", answer))
+
 def log_query_background(query, anon_id, request_id, session_id):
     return log_query(query, anon_id, request_id, session_id)
 
@@ -145,14 +148,17 @@ def chat():
             "fallback": True
         })
 
-    sources = [document.metadata for document in documents]
+    sources = []
+    for i, document in enumerate(documents, 1):
+        metadata = document.metadata.copy()
+        metadata["citation"] = str(i)
+        sources.append(metadata)
 
     def generate():
         yield f"data: {json.dumps({
             'type': 'metadata',
             'session_id': session_id,
             'request_id': request_id,
-            'sources': sources,
             'fallback': False
         }, ensure_ascii=False)}\n\n"
 
@@ -182,7 +188,7 @@ def chat():
 
                 yield f"data: {json.dumps({'type': 'token', 'content': content}, ensure_ascii=False)}\n\n"
 
-        except Exception as error:
+        except Exception:
             Thread(
                 target=update_interaction_response,
                 args=(request_id, "Request gagal diproses.", [], "failed"),
@@ -197,8 +203,14 @@ def chat():
 
         answer = "".join(full_answer)
 
+        used = extract_citations(answer)
+        used_sources = [
+            source for source in sources
+            if source["citation"] in used
+        ]
+
         session_manager.add_message(session_id, "assistant", answer)
-        Thread(target=update_interaction_response, args=(request_id, answer, sources, "completed"), daemon=True).start()
+        Thread(target=update_interaction_response, args=(request_id, answer, used_sources, "completed"), daemon=True).start()
 
         Thread(
             target=log_usage_background,
@@ -237,6 +249,11 @@ def chat():
         yield f"data: {json.dumps({
             'type': 'answer',
             'content': answer
+        }, ensure_ascii=False)}\n\n"
+
+        yield f"data: {json.dumps({
+            'type': 'sources',
+            'sources': used_sources
         }, ensure_ascii=False)}\n\n"
 
         yield 'data: {"type":"done"}\n\n'
