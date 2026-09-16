@@ -38,7 +38,7 @@ class StructureAwareChunker:
         chunk_index = 0
 
         for section in sections:
-            for chunk in self._chunk_section(section):
+            for chunk in self._chunk_section(section, source):
                 documents.append(Document(
                     page_content=chunk["content"],
                     metadata={
@@ -137,7 +137,7 @@ class StructureAwareChunker:
 
         return sections
 
-    def _chunk_section(self, section):
+    def _chunk_section(self, section, source):
         chunks = []
         current_blocks = []
         current_tokens = 0
@@ -155,28 +155,28 @@ class StructureAwareChunker:
 
             if block["label"] == "table" and tokens > max_content_tokens:
                 if current_blocks:
-                    chunks.append(self._make_chunk(current_blocks, heading))
+                    chunks.append(self._make_chunk(current_blocks, heading, source))
                     current_blocks = []
                     current_tokens = 0
 
                 for part in self._split_table_block(block, max_content_tokens):
-                    chunks.append(self._make_chunk([part], heading))
+                    chunks.append(self._make_chunk([part], heading, source))
 
                 continue
 
             if tokens > max_content_tokens:
                 if current_blocks:
-                    chunks.append(self._make_chunk(current_blocks, heading))
+                    chunks.append(self._make_chunk(current_blocks, heading, source))
                     current_blocks = []
                     current_tokens = 0
 
                 for part in self._split_text_block(block, max_content_tokens):
-                    chunks.append(self._make_chunk([part], heading))
+                    chunks.append(self._make_chunk([part], heading, source))
 
                 continue
 
             if current_blocks and current_tokens + tokens > max_content_tokens:
-                chunks.append(self._make_chunk(current_blocks, heading))
+                chunks.append(self._make_chunk(current_blocks, heading, source))
                 current_blocks = []
                 current_tokens = 0
 
@@ -184,7 +184,7 @@ class StructureAwareChunker:
             current_tokens += tokens
 
         if current_blocks:
-            chunks.append(self._make_chunk(current_blocks, heading))
+            chunks.append(self._make_chunk(current_blocks, heading, source))
 
         return chunks
 
@@ -240,12 +240,14 @@ class StructureAwareChunker:
             for i in range(0, len(tokens), max_tokens)
         ]
 
-    def _make_chunk(self, blocks, heading):
+    def _make_chunk(self, blocks, heading, source):
         content = "\n\n".join(block["text"] for block in blocks)
         content = self._scan_injection(content)
 
         if heading:
             content = f"{heading}\n\n{content}"
+        if source:
+            content = f"{content}\n\n{source}"
 
         tokens = len(self.tokenizer.encode(content, add_special_tokens=False))
 
