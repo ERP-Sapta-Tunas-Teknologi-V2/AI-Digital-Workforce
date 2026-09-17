@@ -8,7 +8,7 @@ from ingestion.vectorstore import get_document_ids, delete_document
 from utils.doc_screening import screen_document, extract_text_sample
 
 SOURCE_DIR = Path("documents")
-SUPPORTED_EXTENSIONS = {".docx", ".pdf", ".xlsx", ".pptx"}
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx"}
 ALLOWED_CATEGORIES = {"sop", "datasheet", "pricelist", "guide", "meeting", "training"}
 
 def sync_documents(category=None):

@@ -5,8 +5,8 @@
 Format dokumen yang didukung:
 
 ```text
-.docx
 .pdf
+.docx
 .xlsx
 .pptx
 ```
