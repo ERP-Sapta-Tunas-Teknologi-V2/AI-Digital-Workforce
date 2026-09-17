@@ -36,5 +36,5 @@ Jawaban:
 """)
 
 def generate_answer(question: str, context: str):
-    messages = prompt.format_messages(context=context, question=question)
-    return llm.stream(messages)
+   messages = prompt.format_messages(context=context, question=question)
+   return llm.stream(messages)

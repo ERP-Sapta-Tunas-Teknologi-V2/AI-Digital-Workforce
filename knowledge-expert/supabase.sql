@@ -482,7 +482,8 @@ create table if not exists public.document_status (
     version_status text not null default 'active',  -- 'active' | 'superseded'
     superseded_by text,   -- document_id versi baru
     superseded_at timestamptz,
-    created_at timestamptz default now()
+    created_at timestamptz default now(),
+    updated_at timestamptz default now()
 );
 
 create index if not exists idx_document_status_category on public.document_status(category);

@@ -1,5 +1,7 @@
 from utils.supabase_admin import supabase
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
+
+STALE_PROCESSING_MINUTES = 15  # sesuaikan dengan durasi ingest terlama yang wajar
 
 def set_status(document_id, source, category, status, detail=None):
     data = {
@@ -7,7 +9,8 @@ def set_status(document_id, source, category, status, detail=None):
         "source": source,
         "category": category,
         "status": status,
-        "detail": detail
+        "detail": detail,
+        "updated_at": datetime.now(timezone.utc).isoformat()
     }
 
     existing = supabase.table("document_status").select("version_status").eq("document_id", document_id).execute()
@@ -71,3 +74,24 @@ def get_version_number(document_id: str) -> int:
     )
     previous_versions = result.count or 0
     return previous_versions + 1
+
+def reset_stale_processing():
+    """Tandai baris 'processing' yang sudah lebih tua dari STALE_PROCESSING_MINUTES sebagai 'failed'."""
+    threshold = (datetime.now(timezone.utc) - timedelta(minutes=STALE_PROCESSING_MINUTES)).isoformat()
+
+    stale = (
+        supabase.table("document_status")
+        .select("document_id")
+        .eq("status", "processing")
+        .lt("updated_at", threshold)
+        .execute()
+    )
+
+    for row in stale.data or []:
+        supabase.table("document_status").update({
+            "status": "failed",
+            "detail": "proses terhenti tanpa update status (kemungkinan crash/restart)",
+            "updated_at": datetime.now(timezone.utc).isoformat()
+        }).eq("document_id", row["document_id"]).execute()
+
+    return len(stale.data or [])

@@ -5,7 +5,7 @@ from flask import Blueprint, request, jsonify, send_file
 from utils.permissions import require_role
 from utils.locks import try_acquire, release
 from utils.minio_client import file_exists, upload_file, list_files, delete_file, download_file, archive_file
-from utils.status_tracker import get_all_statuses, delete_status, get_active_version, supersede_status
+from utils.status_tracker import get_all_statuses, delete_status, get_active_version, supersede_status, reset_stale_processing
 from utils.doc_screening import screen_document, find_duplicate, extract_text_sample
 from utils.supabase_admin import supabase
 from ingestion.indexer import index_document
@@ -209,6 +209,7 @@ def upload():
 @admin_bp.route("/documents", methods=["GET"])
 # @require_role("Admin")
 def documents():
+    reset_stale_processing()
     category = request.args.get("category")
 
     files = list_files(category)
