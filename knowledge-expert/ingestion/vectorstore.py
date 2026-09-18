@@ -3,7 +3,6 @@ import time
 from config import EMBEDDING_MODEL
 from rag.embeddings import embeddings, count_embedding_tokens
 from utils.supabase_client import supabase
-from utils.logger import log_index_usage
 
 TARGET_BATCH_TOKENS = 9_000
 MAX_RETRIES = 3
@@ -317,12 +316,6 @@ def add_documents(chunks):
                 f"chunk_index={item['chunk_index']} | "
                 f"fingerprint={item['fingerprint']}"
             )
-
-    if total_embedding_tokens > 0:
-        log_index_usage(
-            emb_model=EMBEDDING_MODEL,
-            embedding_tokens=total_embedding_tokens
-        )
 
     return {
         "inserted": inserted,

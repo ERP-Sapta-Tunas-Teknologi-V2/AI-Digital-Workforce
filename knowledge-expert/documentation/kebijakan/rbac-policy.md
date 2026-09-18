@@ -44,9 +44,6 @@ Berlaku untuk endpoint yang menggunakan decorator `require_role`.
 | `/api/admin/sync` | POST | Admin |
 | `/api/logs/export` | GET | Admin |
 | `/api/logs/top-faq` | GET | Admin |
-| `/api/cost/daily` | GET | Admin |
-| `/api/cost/weekly` | GET | Admin |
-| `/api/cost/budget` | GET | Admin |
 | `/api/chat` | POST | Public (tidak dibatasi role) |
 
 ### Response Tanpa Role

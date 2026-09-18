@@ -42,4 +42,4 @@ Detail request/response endpoint `/api/feedback` tersedia pada [`api-contract.md
 
 ## Data Retention
 
-Retensi seluruh data log (interaction logs, feedback, usage logs, budget alerts, session) mengikuti [`retention-policy.md`](../kebijakan/retention-policy.md).
+Retensi seluruh data log (interaction logs, feedback, session) mengikuti [`retention-policy.md`](../kebijakan/retention-policy.md).

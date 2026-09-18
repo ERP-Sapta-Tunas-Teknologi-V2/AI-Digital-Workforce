@@ -9,7 +9,7 @@ from rag.retriever import hybrid_retrieve
 from rag.chain import generate_answer
 from utils.extensions import limiter
 from utils.anonymizer import anonymize_query
-from utils.logger import log_query, log_chat_usage, update_interaction_response, log_feedback
+from utils.logger import log_query, update_interaction_response, log_feedback
 from utils.injection_patterns import INJECTION_PATTERNS
 from utils.permissions import get_allowed_categories
 from session.manager import SessionManager
@@ -46,20 +46,6 @@ def extract_citations(answer):
 
 def log_query_background(query, anon_id, request_id, session_id):
     return log_query(query, anon_id, request_id, session_id)
-
-def log_usage_background(request_id, anon_id, embedding_model, embedding_tokens, llm_input_tokens, llm_output_tokens):
-    try:
-        log_chat_usage(
-            request_id=request_id,
-            anon_id=anon_id,
-            emb_model=embedding_model,
-            llm_model=OLLAMA_LLM,
-            embedding_tokens=embedding_tokens,
-            llm_input_tokens=llm_input_tokens,
-            llm_output_tokens=llm_output_tokens
-        )
-    except Exception as e:
-        print(f"[USAGE] failed: {e}")
 
 @chat_bp.route("/chat", methods=["POST"])
 @limiter.limit("10 per minute")
@@ -113,12 +99,6 @@ def chat():
     print(f"[{session_id[:8]}] question={safe_query}")
     print(f"[{session_id[:8]}] contextual_question={contextual_question}")
 
-    usage = {
-        "embedding_tokens": 0,
-        "llm_input_tokens": 0,
-        "llm_output_tokens": 0
-    }
-
     log_start = time.perf_counter()
     log_query_background(safe_query, anon_id, request_id, session_id)
     log_time = time.perf_counter() - log_start
@@ -136,9 +116,6 @@ def chat():
             daemon=True
         ).start()
         return jsonify({"error": "failed to process request"}), 500
-    
-    usage["embedding_tokens"] = embedding_tokens
-    usage["embedding_model"] = embedding_model
 
     if not documents:
         answer = "Informasi tidak ditemukan dalam knowledge base. Silakan hubungi kontak kami."
@@ -176,12 +153,6 @@ def chat():
             stream = generate_answer(safe_query, context)
 
             for chunk in stream:
-                metadata = getattr(chunk, "usage_metadata", None)
-
-                if metadata:
-                    usage["llm_input_tokens"] = metadata.get("input_tokens", 0)
-                    usage["llm_output_tokens"] = metadata.get("output_tokens", 0)
-
                 content = chunk.content
 
                 if not content:
@@ -223,19 +194,6 @@ def chat():
 
         Thread(target=update_interaction_response, args=(request_id, answer, used_sources, "completed"), daemon=True).start()
 
-        Thread(
-            target=log_usage_background,
-            args=(
-                request_id,
-                anon_id,
-                usage["embedding_model"],
-                usage["embedding_tokens"],
-                usage["llm_input_tokens"],
-                usage["llm_output_tokens"]
-            ),
-            daemon=True
-        ).start()
-
         ttft = (
             first_token_time
             if first_token_time is not None
@@ -246,10 +204,6 @@ def chat():
             f"[{request_id}] [LLM] "
             f"ttft={ttft:.3f}s | "
             f"total={llm_time:.3f}s | "
-            f"input_tokens="
-            f"{usage['llm_input_tokens']} | "
-            f"output_tokens="
-            f"{usage['llm_output_tokens']}\n"
             f"[{request_id}] [REQUEST] "
             f"total={total_time:.3f}s\n\n"
         )

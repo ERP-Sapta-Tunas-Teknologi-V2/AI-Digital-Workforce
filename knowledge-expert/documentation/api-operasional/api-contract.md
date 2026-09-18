@@ -439,9 +439,6 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | `/api/admin/sync`       | POST   | Admin           |
 | `/api/logs/export`      | GET    | Admin           |
 | `/api/logs/top-faq`     | GET    | Admin           |
-| `/api/cost/daily`       | GET    | Admin           |
-| `/api/cost/weekly`      | GET    | Admin           |
-| `/api/cost/budget`      | GET    | Admin           |
 | `/api/analytics/problematic-answers` | GET | Admin |
 | `/api/analytics/flagged-documents`   | GET | Admin |
 | `/`                     | GET    | Public          |
@@ -683,106 +680,6 @@ GET /api/logs/top-faq?days=30&limit=5
 ```
 
 Jika tidak ada data, mengembalikan array kosong `[]`.
-
----
-
-## GET /api/cost/daily
-
-Endpoint untuk mendapatkan laporan biaya (cost) harian.
-
-### Akses
-
-Dibatasi untuk role `Admin`.
-
-### Request
-
-```http
-GET /api/cost/daily?date=YYYY-MM-DD
-```
-
-| Parameter | Type   | Required | Description                                    |
-| --------- | ------ | -------- | ----------------------------------------------- |
-| `date`    | string | No       | Tanggal laporan. Default: hari ini (server-side) |
-
-### Response
-
-`200 OK`
-
-```json
-{
-  "report_date": "...",
-  "total_cost": 0
-}
-```
-
-Jika tidak ada data untuk tanggal tersebut, mengembalikan object kosong `{}`.
-
----
-
-## GET /api/cost/weekly
-
-Endpoint untuk mendapatkan laporan biaya (cost) mingguan.
-
-### Akses
-
-Dibatasi untuk role `Admin`.
-
-### Request
-
-```http
-GET /api/cost/weekly?date=YYYY-MM-DD
-```
-
-| Parameter | Type   | Required | Description                                                  |
-| --------- | ------ | -------- | -------------------------------------------------------------- |
-| `date`    | string | No       | Tanggal akhir periode mingguan. Default: hari ini (server-side) |
-
-### Response
-
-`200 OK`
-
-```json
-{
-  "data": [
-    {
-      "report_date": "...",
-      "total_cost": 0
-    }
-  ]
-}
-```
-
-Jika tidak ada data, `data` berupa array kosong `[]`.
-
----
-
-## GET /api/cost/budget
-
-Endpoint untuk memeriksa status penggunaan budget saat ini.
-
-### Akses
-
-Dibatasi untuk role `Admin`.
-
-### Request
-
-```http
-GET /api/cost/budget
-```
-
-Tidak ada parameter.
-
-### Response
-
-`200 OK`
-
-```json
-{
-  "...": "..."
-}
-```
-
-Struktur response bergantung pada implementasi `check_budget()`.
 
 ---
 
@@ -1083,7 +980,7 @@ Jika tidak ada data, mengembalikan array kosong `[]`.
 
 ## Analytics Endpoints — Error Response (Umum)
 
-Berlaku untuk seluruh endpoint `/api/logs/*` dan `/api/cost/*`:
+Berlaku untuk seluruh endpoint `/api/logs/*`:
 
 `401 Unauthorized` — role tidak dikirim:
 

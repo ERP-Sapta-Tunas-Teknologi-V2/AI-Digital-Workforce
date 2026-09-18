@@ -8,9 +8,6 @@ Skema lengkap tersedia pada [`supabase.sql`](../../supabase.sql). Jalankan file 
 documents
 interaction_logs
 response_feedback
-chat_usage_logs
-index_usage_logs
-budget_alerts
 document_status
 ingestion_logs
 document_flags
@@ -53,7 +50,7 @@ Mencatat setiap pertanyaan user (setelah anonymization), jawaban chatbot, dokume
 | Column       | Type         | Nullable | Default           | Description                                                              |
 | ------------ | ------------ | -------- | ------------------- | --------------------------------------------------------------------------- |
 | `id`         | bigint       | No       | identity            | Primary key.                                                                |
-| `request_id` | text         | No      | -                    | ID unik per request `/api/chat`, dipakai untuk korelasi dengan usage log dan feedback. |
+| `request_id` | text         | No      | -                    | ID unik per request `/api/chat`, dipakai untuk korelasi dengan feedback. |
 | `session_id` | text         | No      | -                    | ID sesi percakapan (lihat [`session.md`](../kebijakan/session.md)).                     |
 | `query`      | text         | No       | -                    | Pertanyaan user, sudah melalui anonymization (PII diganti placeholder).    |
 | `answer`     | text         | Yes      | -                    | Jawaban chatbot untuk request tersebut, diisi asynchronous setelah streaming selesai. |
@@ -110,95 +107,6 @@ Menyimpan feedback pengguna (thumbs up/down beserta alasan opsional) terhadap su
 **Access control:** RLS aktif, hanya `service_role` yang punya akses penuh (policy `Allow service_role all on response_feedback`).
 
 **Retensi:** tidak independen — mengikuti retensi `interaction_logs` induknya melalui `on delete cascade` (maksimal 90 hari).
-
----
-
-## `chat_usage_logs`
-
-Mencatat biaya dan token usage per request chat (embedding + LLM), digunakan untuk laporan cost harian/mingguan dan monitoring budget.
-
-| Column               | Type            | Nullable | Default   | Description                                   |
-| --------------------- | ---------------- | -------- | ---------- | ------------------------------------------------- |
-| `id`                  | bigint            | No       | identity   | Primary key.                                       |
-| `request_id`          | text              | No       | -          | ID request `/api/chat` terkait.                    |
-| `anon_id`             | uuid              | Yes      | -          | Identifier anonim user terkait.                    |
-| `total_cost`          | numeric(18,10)    | Yes      | 0          | Total biaya (embedding + LLM) untuk request ini.   |
-| `total_tokens`        | integer           | Yes      | 0          | Total token (embedding + LLM input + output).      |
-| `embedding_model`     | text              | Yes      | -          | Nama model embedding yang dipakai.                 |
-| `embedding_cost`      | numeric(18,10)    | Yes      | 0          | Biaya embedding query.                             |
-| `embedding_tokens`    | integer           | Yes      | 0          | Jumlah token embedding query.                      |
-| `llm_model`           | text              | Yes      | -          | Nama model LLM yang dipakai.                       |
-| `llm_total_cost`      | numeric(18,10)    | Yes      | 0          | Total biaya LLM (input + output).                  |
-| `llm_input_cost`      | numeric(18,10)    | Yes      | 0          | Biaya token input LLM.                             |
-| `llm_input_tokens`    | integer           | Yes      | 0          | Jumlah token input LLM.                            |
-| `llm_output_cost`     | numeric(18,10)    | Yes      | 0          | Biaya token output LLM.                            |
-| `llm_output_tokens`   | integer           | Yes      | 0          | Jumlah token output LLM.                           |
-| `created_at`          | timestamptz       | Yes      | `now()`    | Waktu baris dibuat.                                |
-
-**Index:**
-
-| Nama                                     | Kolom          |
-| ------------------------------------------ | --------------- |
-| `idx_chat_usage_logs_request_id`           | `request_id`     |
-| `idx_chat_usage_logs_created_at`           | `created_at`     |
-
-**Access control:** hanya `service_role` (`insert`, `select`).
-
-**Retensi:** 90 hari.
-
----
-
-## `index_usage_logs`
-
-Mencatat biaya dan token usage embedding pada proses indexing dokumen, terpisah dari usage saat chat.
-
-| Column            | Type            | Nullable | Default   | Description                          |
-| ------------------ | ---------------- | -------- | ---------- | --------------------------------------- |
-| `id`               | bigint            | No       | identity   | Primary key.                            |
-| `embedding_model`  | text              | Yes      | -          | Nama model embedding yang dipakai.      |
-| `embedding_cost`   | numeric(18,10)    | Yes      | 0          | Biaya embedding batch chunk.            |
-| `embedding_tokens` | integer           | Yes      | 0          | Jumlah token embedding batch chunk.     |
-| `created_at`       | timestamptz       | Yes      | `now()`    | Waktu baris dibuat.                     |
-
-**Index:**
-
-| Nama                                  | Kolom          |
-| --------------------------------------- | --------------- |
-| `idx_index_usage_logs_id`               | `id`             |
-| `idx_index_usage_logs_created_at`       | `created_at`     |
-
-**Access control:** hanya `service_role` (`insert`, `select`).
-
-**Retensi:** 90 hari.
-
----
-
-## `budget_alerts`
-
-Menyimpan histori alert saat penggunaan budget (harian/mingguan) melewati threshold tertentu.
-
-| Column           | Type            | Nullable | Default   | Description                                             |
-| ----------------- | ---------------- | -------- | ---------- | ------------------------------------------------------------ |
-| `id`              | bigint            | No       | identity   | Primary key.                                                  |
-| `period_type`     | text              | No       | -          | `daily` atau `weekly`.                                        |
-| `period_date`     | date              | No       | -          | Tanggal periode yang dievaluasi.                              |
-| `alert_type`      | text              | No       | -          | `WARNING` atau `EXCEEDED` (lihat `utils/budget_monitor.py`).  |
-| `cost`            | numeric(18,10)    | No       | -          | Total biaya pada periode tersebut saat alert dibuat.          |
-| `budget`          | numeric(18,10)    | No       | -          | Nilai budget yang berlaku (harian/mingguan).                  |
-| `usage_percent`   | numeric(10,2)     | No       | -          | Persentase penggunaan budget saat alert dibuat.               |
-| `created_at`      | timestamptz       | Yes      | `now()`    | Waktu alert dibuat.                                           |
-
-**Index & constraint:**
-
-| Nama                                       | Jenis   | Kolom                                        | Keterangan                                          |
-| --------------------------------------------- | -------- | ---------------------------------------------- | -------------------------------------------------------- |
-| `idx_budget_alerts_created_at`                | index    | `created_at`                                    | Mempercepat query berbasis waktu.                        |
-| `idx_budget_alerts_id`                        | index    | `id`                                            | -                                                          |
-| `unique(period_type, period_date, alert_type)`| unique   | `period_type, period_date, alert_type`          | Mencegah alert duplikat untuk kombinasi periode yang sama. |
-
-**Access control:** hanya `service_role` (`insert`, `select`).
-
-**Retensi:** 90 hari.
 
 ---
 
@@ -369,14 +277,6 @@ Mengembalikan jumlah baris yang dihapus (`integer`). Akses `execute` dicabut dar
 
 Mengagregasi `interaction_logs` dalam rentang `days` hari terakhir, mengelompokkan berdasarkan teks `query` yang identik, lalu mengembalikan `query`, `total_queries` (jumlah kemunculan), dan `last_asked` (waktu terakhir ditanyakan), diurutkan dari yang paling sering. Dipakai oleh endpoint `GET /api/logs/top-faq`.
 
-### `get_daily_cost_report(report_date default current_date)`
-
-Menjumlahkan biaya dan token dari `chat_usage_logs` (biaya chat) dan `index_usage_logs` (biaya embedding indexing) untuk satu hari tertentu. Mengembalikan satu baris berisi `total_cost`, `embedding_cost`, `llm_cost`, `total_tokens`, `embedding_tokens`, `llm_input_tokens`, `llm_output_tokens`, `chat_requests`, `index_runs`. Dipakai oleh endpoint `GET /api/cost/daily`.
-
-### `get_weekly_cost_report(end_date default current_date)`
-
-Sama seperti laporan harian, tetapi menghasilkan satu baris **per hari** untuk 7 hari terakhir (dari `end_date - 6 hari` sampai `end_date`), termasuk hari yang tidak ada aktivitas (nilai 0). Mengembalikan `report_date`, `total_cost`, `embedding_cost`, `llm_cost`, `total_tokens`, `chat_requests`, `index_runs`. Dipakai oleh endpoint `GET /api/cost/weekly`.
-
 ### `get_ingestion_report(start_date default current_date - 7, end_date default current_date)`
 
 Mengagregasi `ingestion_logs` per `category` dalam rentang tanggal tertentu: total run, total chunk inserted/updated/skipped/deleted/failed, dan jumlah run yang berstatus `failed`. Digunakan untuk kebutuhan monitoring kualitas proses ingestion (belum diekspos sebagai endpoint API pada dokumentasi saat ini).
@@ -399,8 +299,6 @@ Meng-unnest array `sources` pada setiap `interaction_logs` yang memiliki feedbac
 | `hybrid_search()`                       | `rag/retriever.py`                            | anon (default RLS)       |
 | `delete_expired_interaction_logs()`     | `sync/retention.py`                           | service_role saja        |
 | `get_top_faq()`                         | `GET /api/logs/top-faq`                       | service_role saja        |
-| `get_daily_cost_report()`               | `GET /api/cost/daily`                         | service_role saja        |
-| `get_weekly_cost_report()`              | `GET /api/cost/weekly`                        | service_role saja        |
 | `get_ingestion_report()`                | (belum ada endpoint API)                      | service_role saja        |
 | `get_problematic_answers()`             | `GET /api/analytics/problematic-answers`      | service_role saja        |
 | `get_flagged_documents()`               | `GET /api/analytics/flagged-documents`        | service_role saja        |

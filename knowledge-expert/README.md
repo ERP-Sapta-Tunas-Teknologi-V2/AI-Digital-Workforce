@@ -735,7 +735,7 @@ Dokumentasi detail tersedia di directory [`documentation/`](documentation):
 * [`admin-endpoints.md`](documentation/api-operasional/admin-endpoints.md) — endpoint upload, ingest, un-ingest, delete, sync
 * [`dashboard.md`](documentation/api-operasional/dashboard.md) — panduan Dashboard Dokumen
 * [`indexing-and-sync.md`](documentation/api-operasional/indexing-and-sync.md) — indexing manual dan sinkronisasi dokumen
-* [`analytics-endpoints.md`](documentation/api-operasional/analytics-endpoints.md) — top FAQ, cost report, problematic answers, flagged documents
+* [`analytics-endpoints.md`](documentation/api-operasional/analytics-endpoints.md) — top FAQ, problematic answers, flagged documents
 
 ### Kebijakan
 

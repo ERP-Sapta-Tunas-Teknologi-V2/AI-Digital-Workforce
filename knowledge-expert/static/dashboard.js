@@ -61,8 +61,7 @@ const VIEW_TITLES = {
     documents: "Dokumen",
     faq: "Top FAQ",
     feedback: "Jawaban Bermasalah",
-    flags: "Dokumen Ditandai",
-    cost: "Biaya & Budget"
+    flags: "Dokumen Ditandai"
 };
 
 function switchView(view) {
@@ -75,7 +74,6 @@ function switchView(view) {
     if (view === "faq") loadFaq();
     if (view === "feedback") loadProblematicAnswers();
     if (view === "flags") loadFlaggedDocuments();
-    if (view === "cost") loadCost();
 }
 
 document.querySelectorAll(".nav-item").forEach(btn => {
@@ -492,63 +490,6 @@ async function loadFlaggedDocuments() {
 }
 
 document.getElementById("flags-days").addEventListener("change", loadFlaggedDocuments);
-
-// ---------- Cost & Budget ----------
-
-function setProgress(fillEl, statusEl, valueEl, cost, budget, status) {
-    const pct = budget > 0 ? Math.min((cost / budget) * 100, 100) : 100;
-    fillEl.style.width = `${pct}%`;
-    fillEl.classList.remove("warn", "exceeded");
-    if (status === "EXCEEDED") fillEl.classList.add("exceeded");
-    else if (status === "WARNING") fillEl.classList.add("warn");
-
-    valueEl.textContent = `${fmtCurrency(cost)} / ${fmtCurrency(budget)}`;
-    statusEl.textContent = `${status} · ${pct.toFixed(1)}%`;
-}
-
-async function loadCost() {
-    try {
-        const budget = await apiGet(`${API_BASE}/cost/budget`, ADMIN_ROLE_HEADER);
-
-        setProgress(
-            document.getElementById("cost-daily-fill"),
-            document.getElementById("cost-daily-status"),
-            document.getElementById("cost-daily-value"),
-            budget.daily.cost, budget.daily.budget, budget.daily.status
-        );
-        setProgress(
-            document.getElementById("cost-weekly-fill"),
-            document.getElementById("cost-weekly-status"),
-            document.getElementById("cost-weekly-value"),
-            budget.weekly.cost, budget.weekly.budget, budget.weekly.status
-        );
-
-        const weekly = await apiGet(`${API_BASE}/cost/weekly`, ADMIN_ROLE_HEADER);
-        const body = document.getElementById("weekly-cost-body");
-        body.innerHTML = "";
-
-        const rows = weekly.data || [];
-        if (!rows.length) {
-            body.innerHTML = `<tr><td colspan="5" class="empty-state">Belum ada data</td></tr>`;
-            return;
-        }
-
-        rows.forEach(row => {
-            const tr = document.createElement("tr");
-            tr.innerHTML = `
-                <td>${new Date(row.report_date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
-                <td>${fmtCurrency(row.total_cost)}</td>
-                <td>${fmtNumber(row.total_tokens)}</td>
-                <td>${fmtNumber(row.chat_requests)}</td>
-                <td>${fmtNumber(row.index_runs)}</td>
-            `;
-            body.appendChild(tr);
-        });
-    } catch (e) {
-        console.error(e);
-        toast("Gagal memuat data biaya", "error");
-    }
-}
 
 // ---------- Export logs (topbar action, shown on overview) ----------
 
