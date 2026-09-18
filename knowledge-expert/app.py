@@ -66,7 +66,7 @@ def create_app():
 
     @app.route("/")
     def index():
-        return send_from_directory("static", "index.html")
+        return send_from_directory("static", "chat.html")
 
     @app.route("/dashboard")
     def dashboard():

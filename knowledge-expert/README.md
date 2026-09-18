@@ -352,9 +352,9 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 │   ├── supabase_admin.py
 │   └── supabase_client.py
 ├── static/
-│   ├── index.html
+│   ├── chat.html
 │   ├── chat.js
-│   ├── style.css
+│   ├── chat.css
 │   ├── dashboard.html
 │   ├── dashboard.js
 │   └── dashboard.css
