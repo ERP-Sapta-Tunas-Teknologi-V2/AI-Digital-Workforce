@@ -1,35 +1,45 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Knowledge Expert</title>
     <link rel="stylesheet" href="/static/chat.css">
 </head>
+
 <body>
-    <div class="app">
-        <aside class="sidebar">
-            <div class="sidebar-header">
-                <span>Riwayat</span>
-                <button id="new-chat-button" title="Chat baru">+</button>
+    <div id="sidebar">
+        <div id="sidebar-header">
+            <h1>Riwayat</h1>
+            <button id="new-chat-btn" onclick="startNewChat()">+ Baru</button>
+        </div>
+        <div id="session-list"></div>
+    </div>
+
+    <div id="main">
+        <div id="topbar">
+            <div class="dot"></div>
+            <h2>Knowledge Expert</h2>
+        </div>
+
+        <div id="messages">
+            <div id="welcome">
+                <h2>Selamat datang</h2>
+                <p>Tanyakan sesuatu berdasarkan knowledge base perusahaan. Jawaban disertai sitasi sumber.</p>
             </div>
-            <div id="session-list" class="session-list"></div>
-        </aside>
+        </div>
 
-        <div class="chat">
-            <div class="header">Knowledge Expert</div>
-
-            <div id="messages" class="messages">
-                <div class="message bot">Halo, ada yang bisa saya bantu?</div>
+        <div id="input-area">
+            <div id="input-box">
+                <textarea id="question" placeholder="Ketik pertanyaan Anda..." rows="1"></textarea>
+                <button id="send-btn" onclick="sendMessage()">➤</button>
             </div>
-
-            <form id="chat-form" class="input-area">
-                <input id="question" placeholder="Tulis pertanyaan..." autocomplete="off">
-                <button type="submit">Kirim</button>
-            </form>
+            <div id="char-count">0 / 1000</div>
         </div>
     </div>
 
     <script src="/static/chat.js"></script>
 </body>
+
 </html>

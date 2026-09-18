@@ -1,360 +1,281 @@
-const form = document.getElementById("chat-form");
-const input = document.getElementById("question");
-const button = form.querySelector("button");
-const messages = document.getElementById("messages");
+const API_BASE = "/api";
+const MAX_LEN = 1000;
 
-let isLoading = false;
-let sessionId = null;
-let lastRequestId = null;
-let sources = [];
+let sessionId = localStorage.getItem("active_session_id") || null;
+let knownSessionIds = JSON.parse(localStorage.getItem("session_ids") || "[]");
+let isStreaming = false;
 
+const messagesEl = document.getElementById("messages");
+const questionEl = document.getElementById("question");
+const sendBtn = document.getElementById("send-btn");
+const charCountEl = document.getElementById("char-count");
 const sessionListEl = document.getElementById("session-list");
-const newChatButton = document.getElementById("new-chat-button");
 
-const STORAGE_KEY = "ke_session_ids";
+questionEl.addEventListener("input", () => {
+    charCountEl.textContent = `${questionEl.value.length} / ${MAX_LEN}`;
+    questionEl.style.height = "auto";
+    questionEl.style.height = Math.min(questionEl.scrollHeight, 140) + "px";
+});
 
-function getStoredSessionIds() {
-    try {
-        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
-    } catch {
-        return [];
+questionEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+        e.preventDefault();
+        sendMessage();
     }
+});
+
+function clearWelcome() {
+    const w = document.getElementById("welcome");
+    if (w) w.remove();
+}
+
+function addMessage(role, text) {
+    clearWelcome();
+    const row = document.createElement("div");
+    row.className = `msg-row ${role}`;
+    const bubble = document.createElement("div");
+    bubble.className = "bubble";
+    bubble.textContent = text;
+    row.appendChild(bubble);
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return { row, bubble };
+}
+
+function addTypingIndicator() {
+    clearWelcome();
+    const row = document.createElement("div");
+    row.className = "msg-row bot";
+    row.id = "typing-row";
+    row.innerHTML = `<div class="bubble typing"><span></span><span></span><span></span></div>`;
+    messagesEl.appendChild(row);
+    messagesEl.scrollTop = messagesEl.scrollHeight;
+    return row;
+}
+
+function renderSources(container, sources) {
+    if (!sources || !sources.length) return;
+    const wrap = document.createElement("div");
+    wrap.className = "sources";
+    sources.forEach(s => {
+        const chip = document.createElement("div");
+        chip.className = "source-chip";
+        chip.innerHTML = `<b>[${s.citation}]</b> ${s.source || "-"} ${s.page ? "· hlm. " + (Array.isArray(s.page)?s.page.join(","):s.page) : ""} ${s.category ? "· " + s.category : ""}`;
+        wrap.appendChild(chip);
+    });
+    container.appendChild(wrap);
+}
+
+function renderFeedback(container, requestId) {
+    const row = document.createElement("div");
+    row.className = "feedback-row";
+    row.innerHTML = `
+        <button class="fb-btn" data-rating="up">👍</button>
+        <button class="fb-btn" data-rating="down">👎</button>
+    `;
+    row.querySelectorAll(".fb-btn").forEach(btn => {
+        btn.addEventListener("click", () => {
+            row.querySelectorAll(".fb-btn").forEach(b => b.classList.remove("selected"));
+            btn.classList.add("selected");
+            sendFeedback(requestId, btn.dataset.rating);
+        });
+    });
+    container.appendChild(row);
+}
+
+async function sendFeedback(requestId, rating) {
+    try {
+        await fetch(`${API_BASE}/feedback`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ request_id: requestId, rating })
+        });
+    } catch (e) { console.error("feedback failed", e); }
 }
 
 function saveSessionId(id) {
-    const ids = getStoredSessionIds();
-    if (!ids.includes(id)) {
-        ids.unshift(id);
-        localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+    sessionId = id;
+    localStorage.setItem("active_session_id", id);
+    if (!knownSessionIds.includes(id)) {
+        knownSessionIds.unshift(id);
+        localStorage.setItem("session_ids", JSON.stringify(knownSessionIds));
     }
 }
 
-async function loadSidebar() {
-    const ids = getStoredSessionIds();
-    sessionListEl.innerHTML = "";
+function startNewChat() {
+    sessionId = null;
+    localStorage.removeItem("active_session_id");
+    messagesEl.innerHTML = `
+        <div id="welcome">
+            <h2>Selamat datang</h2>
+            <p>Tanyakan sesuatu berdasarkan knowledge base perusahaan. Jawaban disertai sitasi sumber.</p>
+        </div>`;
+    highlightActiveSession();
+}
 
-    if (!ids.length) return;
-
+async function loadSessionList() {
+    if (!knownSessionIds.length) return;
     try {
-        const response = await fetch("/api/sessions", {
+        const res = await fetch(`${API_BASE}/sessions`, {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({session_ids: ids})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ session_ids: knownSessionIds })
         });
-
-        const sessions = await response.json();
-
+        const sessions = await res.json();
+        sessionListEl.innerHTML = "";
         sessions.forEach(s => {
             const item = document.createElement("div");
             item.className = "session-item" + (s.session_id === sessionId ? " active" : "");
-
-            const label = document.createElement("span");
-            label.className = "session-item-label";
-            label.textContent = s.title || "(tanpa judul)";
-            label.addEventListener("click", () => loadSession(s.session_id));
-
-            const deleteBtn = document.createElement("button");
-            deleteBtn.className = "session-delete-button";
-            deleteBtn.textContent = "×";
-            deleteBtn.title = "Hapus percakapan";
-            deleteBtn.addEventListener("click", (e) => {
+            item.dataset.id = s.session_id;
+            item.innerHTML = `<span>${s.title || "Percakapan baru"}</span><button class="del-btn" title="Hapus">✕</button>`;
+            item.querySelector("span").addEventListener("click", () => openSession(s.session_id));
+            item.querySelector(".del-btn").addEventListener("click", (e) => {
                 e.stopPropagation();
                 deleteSession(s.session_id);
             });
-
-            item.appendChild(label);
-            item.appendChild(deleteBtn);
             sessionListEl.appendChild(item);
         });
-    } catch (error) {
-        console.error("Failed to load sidebar:", error);
-    }
+    } catch (e) { console.error("load sessions failed", e); }
 }
 
-async function loadSession(id) {
+function highlightActiveSession() {
+    document.querySelectorAll(".session-item").forEach(el => {
+        el.classList.toggle("active", el.dataset.id === sessionId);
+    });
+}
+
+async function openSession(id) {
     try {
-        const response = await fetch(`/api/sessions/${id}`);
-        if (!response.ok) return;
-
-        const data = await response.json();
-
-        sessionId = id;
-        messages.innerHTML = "";
-
-        data.messages.forEach(m => {
-            const bot = addMessage(m.content, m.role === "user" ? "user" : "bot");
-
-            if (m.role === "assistant" && m.sources && m.sources.length) {
-                appendSources(bot, m.sources);
-            }
+        const res = await fetch(`${API_BASE}/sessions/${id}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        saveSessionId(id);
+        messagesEl.innerHTML = "";
+        (data.messages || []).forEach(m => {
+            const { row } = addMessage(m.role === "user" ? "user" : "bot", m.content);
+            if (m.role === "assistant" && m.sources) renderSources(row, m.sources);
         });
-
-        loadSidebar();
-    } catch (error) {
-        console.error("Failed to load session:", error);
-    }
-}
-
-function removeStoredSessionId(id) {
-    const ids = getStoredSessionIds().filter(existing => existing !== id);
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+        highlightActiveSession();
+    } catch (e) { console.error("open session failed", e); }
 }
 
 async function deleteSession(id) {
-    if (!confirm("Hapus percakapan ini?")) {
-        return;
-    }
+    try {
+        await fetch(`${API_BASE}/sessions/${id}`, { method: "DELETE" });
+        knownSessionIds = knownSessionIds.filter(s => s !== id);
+        localStorage.setItem("session_ids", JSON.stringify(knownSessionIds));
+        if (id === sessionId) startNewChat();
+        loadSessionList();
+    } catch (e) { console.error("delete session failed", e); }
+}
+
+async function sendMessage() {
+    const question = questionEl.value.trim();
+    if (!question || isStreaming) return;
+    if (question.length > MAX_LEN) return;
+
+    isStreaming = true;
+    sendBtn.disabled = true;
+    questionEl.value = "";
+    questionEl.style.height = "auto";
+    charCountEl.textContent = `0 / ${MAX_LEN}`;
+
+    addMessage("user", question);
+    const typingRow = addTypingIndicator();
+
+    let botBubbleEl = null;
+    let botRowEl = null;
+    let currentRequestId = null;
+    let answerBuffer = "";
 
     try {
-        await fetch(`/api/sessions/${id}`, { method: "DELETE" });
-    } catch (error) {
-        console.error("Failed to delete session:", error);
-    } finally {
-        removeStoredSessionId(id);
-
-        if (id === sessionId) {
-            sessionId = null;
-            lastRequestId = null;
-            messages.innerHTML = "";
-            addMessage("Halo, ada yang bisa saya bantu?", "bot");
-        }
-
-        loadSidebar();
-    }
-}
-
-function appendSources(bot, sourceList) {
-    const sourceEl = document.createElement("div");
-    sourceEl.className = "sources";
-
-    const title = document.createElement("b");
-    title.textContent = "Sumber:";
-    sourceEl.appendChild(title);
-
-    sourceList.forEach(source => {
-        const item = document.createElement("div");
-        const index = `[${source.citation}] `;
-        const name = source.source || "Dokumen";
-        const page = source.page ? ` [Halaman ${source.page}]` : "";
-        item.textContent = `${index}${name}${page}`;
-        sourceEl.appendChild(item);
-    });
-
-    bot.appendChild(sourceEl);
-}
-
-newChatButton.addEventListener("click", () => {
-    sessionId = null;
-    lastRequestId = null;
-    messages.innerHTML = "";
-    addMessage("Halo, ada yang bisa saya bantu?", "bot");
-    loadSidebar();
-});
-
-loadSidebar();
-
-function addMessage(text, type) {
-    const el = document.createElement("div");
-    el.className = `message ${type}`;
-    el.textContent = text;
-    messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
-    return el;
-}
-
-function addTyping() {
-    const el = document.createElement("div");
-    el.className = "message bot typing";
-    el.innerHTML = "<span></span><span></span><span></span>";
-    messages.appendChild(el);
-    messages.scrollTop = messages.scrollHeight;
-    return el;
-}
-
-function setLoading(loading) {
-    isLoading = loading;
-    button.disabled = loading;
-    button.textContent = loading ? "Menunggu..." : "Kirim";
-}
-
-function addFeedbackControls(bot, requestId) {
-    const wrap = document.createElement("div");
-    wrap.className = "feedback";
-
-    const up = document.createElement("button");
-    up.textContent = "👍";
-    up.type = "button";
-
-    const down = document.createElement("button");
-    down.textContent = "👎";
-    down.type = "button";
-
-    const status = document.createElement("span");
-    status.className = "feedback-status";
-
-    up.addEventListener("click", () => {
-        const reason = prompt("Tuliskan alasan dari feedback Anda (opsional)");
-        submitFeedback(requestId, "up", reason || null, wrap, status);
-    });
-    down.addEventListener("click", () => {
-        const reason = prompt("Tuliskan alasan dari feedback Anda (opsional)");
-        submitFeedback(requestId, "down", reason || null, wrap, status);
-    });
-
-    wrap.appendChild(up);
-    wrap.appendChild(down);
-    wrap.appendChild(status);
-    bot.appendChild(wrap);
-}
-
-async function submitFeedback(requestId, rating, reason, wrap, status) {
-    wrap.querySelectorAll("button").forEach(b => b.disabled = true);
-
-    try {
-        const response = await fetch("/api/feedback", {
+        const res = await fetch(`${API_BASE}/chat`, {
             method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({request_id: requestId, rating, reason})
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ question, session_id: sessionId })
         });
 
-        if (!response.ok) {
-            throw new Error();
-        }
-
-        status.textContent = "Terima kasih atas feedback Anda.";
-    } catch {
-        status.textContent = "Gagal mengirim feedback.";
-        wrap.querySelectorAll("button").forEach(b => b.disabled = false);
-    }
-}
-
-form.addEventListener("submit", async e => {
-    e.preventDefault();
-
-    if (isLoading) {
-        return;
-    }
-
-    const question = input.value.trim();
-
-    if (!question) {
-        return;
-    }
-
-    addMessage(question, "user");
-    input.value = "";
-    setLoading(true);
-
-    const bot = addTyping();
-
-    try {
-        const response = await fetch("/api/chat", {
-            method: "POST",
-            headers: {"Content-Type": "application/json"},
-            body: JSON.stringify({question, session_id: sessionId})
-        });
-
-        if (!response.ok) {
-            const error = await response.json();
-            bot.className = "message bot";
-            bot.textContent = response.status === 429
-                ? "Terlalu banyak permintaan. Silakan coba lagi nanti."
-                : error.error || "Terjadi kesalahan.";
+        if (!res.ok || !res.body) {
+            typingRow.remove();
+            addMessage("bot", "Request gagal diproses.");
+            isStreaming = false;
+            sendBtn.disabled = false;
             return;
         }
 
-        const contentType = response.headers.get("content-type") || "";
-
-        if (contentType.includes("application/json")) {
-            const data = await response.json();
-            sessionId = data.session_id;
-
-            saveSessionId(sessionId);
-            loadSidebar();
-
-            bot.className = "message bot";
-            bot.textContent = data.answer;
-
-            if (data.request_id) {
-                addFeedbackControls(bot, data.request_id);
-            }
-
-            return;
-        }
-
-        const reader = response.body.getReader();
+        const reader = res.body.getReader();
         const decoder = new TextDecoder();
-
         let buffer = "";
-        let answer = "";
-        let sources = [];
-        let started = false;
 
         while (true) {
-            const {value, done} = await reader.read();
+            const { value, done } = await reader.read();
+            if (done) break;
+            buffer += decoder.decode(value, { stream: true });
 
-            if (done) {
-                break;
-            }
+            const parts = buffer.split("\n\n");
+            buffer = parts.pop();
 
-            buffer += decoder.decode(value, {stream: true});
+            for (const part of parts) {
+                if (!part.startsWith("data:")) continue;
+                const jsonStr = part.slice(5).trim();
+                if (!jsonStr) continue;
 
-            const events = buffer.split("\n\n");
-            buffer = events.pop();
+                let evt;
+                try { evt = JSON.parse(jsonStr); } catch { continue; }
 
-            for (const event of events) {
-                if (!event.startsWith("data: ")) {
-                    continue;
+                if (evt.type === "metadata") {
+                    saveSessionId(evt.session_id);
+                    currentRequestId = evt.request_id;
+                    highlightActiveSession();
+                    loadSessionList();
                 }
 
-                const data = JSON.parse(event.slice(6));
-
-                if (data.type === "metadata") {
-                    sessionId = data.session_id;
-                    saveSessionId(sessionId);
-                    sources = data.sources || [];
-                    lastRequestId = data.request_id;
-                }
-
-                if (data.type === "token") {
-                    if (!started) {
-                        bot.className = "message bot";
-                        bot.textContent = "";
-                        started = true;
+                if (evt.type === "token") {
+                    if (!botBubbleEl) {
+                        typingRow.remove();
+                        const { row, bubble } = addMessage("bot", "");
+                        botRowEl = row;
+                        botBubbleEl = bubble;
                     }
-
-                    answer += data.content;
-                    bot.textContent = answer;
-                    messages.scrollTop = messages.scrollHeight;
+                    answerBuffer += evt.content;
+                    botBubbleEl.textContent = answerBuffer;
+                    messagesEl.scrollTop = messagesEl.scrollHeight;
                 }
 
-                if (data.type === "answer") {
-                    answer = data.content;
+                if (evt.type === "answer") {
+                    answerBuffer = evt.content;
+                    if (botBubbleEl) botBubbleEl.textContent = answerBuffer;
                 }
 
-                if (data.type === "sources") {
-                    sources = data.sources || [];
-                }
-
-                if (data.type === "done") {
-                    if (sources.length) {
-                        appendSources(bot, sources);
+                if (evt.type === "sources") {
+                    if (botRowEl) {
+                        renderSources(botRowEl, evt.sources);
+                        if (currentRequestId) renderFeedback(botRowEl, currentRequestId);
                     }
+                }
 
-                    if (lastRequestId) {
-                        addFeedbackControls(bot, lastRequestId);
-                    }
-
-                    loadSidebar();
+                if (evt.type === "error") {
+                    typingRow.remove();
+                    if (!botBubbleEl) addMessage("bot", evt.content);
                 }
             }
         }
-    } catch (error) {
-        console.error("Chat error:", error);
-        bot.className = "message bot";
-        bot.textContent = "Terjadi kesalahan saat menghubungi server.";
+
+        if (!botBubbleEl && typingRow.parentNode) {
+            typingRow.remove();
+        }
+
+    } catch (e) {
+        console.error("chat stream failed", e);
+        if (typingRow.parentNode) typingRow.remove();
+        if (!botBubbleEl) addMessage("bot", "Request gagal diproses.");
     } finally {
-        setLoading(false);
-        input.focus();
+        isStreaming = false;
+        sendBtn.disabled = false;
+        questionEl.focus();
     }
-});
+}
+
+// init
+loadSessionList();
+if (sessionId) openSession(sessionId);
