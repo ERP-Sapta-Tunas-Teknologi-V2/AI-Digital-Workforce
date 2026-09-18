@@ -341,6 +341,10 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 │   ├── chat.py
 │   ├── analytics.py
 │   └── admin.py
+├── session/
+│   ├── manager.py
+│   ├── memory.py
+│   └── contextualizer.py
 ├── utils/
 │   ├── anonymizer.py
 │   ├── extensions.py

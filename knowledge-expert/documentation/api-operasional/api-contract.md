@@ -432,6 +432,9 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | ----------------------- | ------ | --------------- |
 | `/api/chat`             | POST   | Public          |
 | `/api/feedback`         | POST   | Public          |
+| `POST /api/sessions`    | POST   | Public          |
+| `GET /api/sessions/<id>`| GET    | Public          |
+| `DELETE /api/sessions/<id>` | DELETE | Public      |
 | `/api/admin/ingest`     | POST   | Admin           |
 | `/api/admin/sync`       | POST   | Admin           |
 | `/api/logs/export`      | GET    | Admin           |
@@ -854,6 +857,141 @@ Satu `request_id` hanya dapat memiliki satu feedback. Mengirim feedback baru unt
 
 ```text
 20 request / menit / IP
+```
+
+---
+
+## Sessions (Sidebar)
+
+Endpoint pendukung fitur riwayat percakapan pada sidebar widget chat. Karena widget publik tidak memiliki authentication, daftar `session_id` disimpan di localStorage browser client; endpoint ini tidak melakukan validasi ownership (lihat [`session.md`](../kebijakan/session.md#75-sidebar-riwayat-percakapan)).
+
+### POST /api/sessions
+
+Mengambil metadata sejumlah session sekaligus, digunakan untuk render daftar sidebar.
+
+#### Request
+
+```http
+POST /api/sessions
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "session_ids": ["...", "..."]
+}
+```
+
+| Parameter      | Type  | Required | Description                                   |
+| --------------- | ----- | -------- | ------------------------------------------------ |
+| `session_ids`  | array | Yes      | Daftar `session_id` yang tersimpan di localStorage client |
+
+#### Response
+
+`200 OK`
+
+```json
+[
+  {
+    "session_id": "...",
+    "title": "...",
+    "created_at": "...",
+    "last_activity_at": "..."
+  }
+]
+```
+
+Session yang sudah dihapus atau tidak ditemukan tidak muncul pada hasil (bukan error). Diurutkan dari `last_activity_at` terbaru.
+
+#### Error Response
+
+`400 Bad Request`:
+
+```json
+{ "error": "session_ids must be an array" }
+```
+
+---
+
+### GET /api/sessions/{session_id}
+
+Mengambil riwayat pesan lengkap satu session, digunakan untuk menampilkan ulang percakapan saat item sidebar diklik.
+
+#### Request
+
+```http
+GET /api/sessions/{session_id}
+```
+
+#### Response
+
+`200 OK`
+
+```json
+{
+  "session_id": "...",
+  "title": "...",
+  "messages": [
+    { "role": "user", "content": "...", "sources": null, "created_at": "..." },
+    { "role": "assistant", "content": "...", "sources": [
+      {
+        "citation": "1",
+        "page": [1,2],
+        "source": "...",
+        "category": "...",
+        "uploaded_at": "...",
+        "section_title": "...",
+        "version": 1
+      }
+    ], "created_at": "..." }
+  ]
+}
+```
+
+`sources` bernilai `null` untuk pesan `user` atau jawaban fallback.
+
+#### Error Response
+
+`404 Not Found` — session tidak ditemukan atau sudah expired:
+
+```json
+{ "error": "session not found or expired" }
+```
+
+---
+
+### DELETE /api/sessions/{session_id}
+
+Menghapus session beserta seluruh riwayat pesannya secara permanen (cascade ke `session_messages`).
+
+#### Request
+
+```http
+DELETE /api/sessions/{session_id}
+```
+
+#### Response
+
+`200 OK`
+
+```json
+{ "message": "session deleted" }
+```
+
+#### Error Response
+
+`404 Not Found`:
+
+```json
+{ "error": "session not found" }
+```
+
+`500 Internal Server Error`:
+
+```json
+{ "error": "failed to delete session" }
 ```
 
 ---

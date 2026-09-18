@@ -14,6 +14,8 @@ budget_alerts
 document_status
 ingestion_logs
 document_flags
+sessions
+session_messages
 ```
 
 ---
@@ -284,6 +286,57 @@ Menyimpan hasil screening dokumen (duplikat, rahasia, usang) yang dijalankan seb
 | `idx_document_flags_type`           | `flag_type`      |
 
 **Access control:** RLS aktif, hanya `service_role` (policy `Allow service_role all on document_flags`, akses penuh).
+
+---
+
+## `sessions`
+
+Menyimpan metadata session percakapan chatbot, menggantikan in-memory store agar persist antar restart aplikasi dan mendukung sidebar riwayat percakapan pada widget chat (lihat [`session.md`](../kebijakan/session.md)).
+
+| Column                 | Type        | Nullable | Default   | Description                                                        |
+| ----------------------- | ----------- | -------- | ---------- | -------------------------------------------------------------------- |
+| `session_id`            | text        | No       | -          | Primary key, UUID v4.                                                |
+| `user_id`               | text        | Yes      | -          | Identifier user jika authentication tersedia; `null` untuk widget publik. |
+| `title`                 | text        | Yes      | -          | Judul percakapan, diambil otomatis dari potongan pertanyaan pertama user. |
+| `created_at`            | timestamptz | No       | `now()`    | Waktu session dibuat.                                                 |
+| `last_activity_at`      | timestamptz | No       | `now()`    | Waktu aktivitas terakhir, diperbarui setiap request valid.            |
+| `expires_at`            | timestamptz | No       | -          | Batas idle timeout (30 menit sejak `last_activity_at`).               |
+| `absolute_expires_at`   | timestamptz | No       | -          | Batas absolute timeout (24 jam sejak `created_at`).                   |
+
+**Index:**
+
+| Nama                              | Kolom               |
+| ----------------------------------- | --------------------- |
+| `idx_sessions_last_activity`        | `last_activity_at`     |
+
+**Access control:** RLS aktif, hanya `service_role` (policy `Allow service_role all on sessions`, akses penuh). Tidak ada validasi ownership berbasis `user_id` pada endpoint saat ini — siapa pun yang mengetahui `session_id` dapat mengambil atau menghapus session tersebut (lihat [Batasan & Risiko](../kebijakan/session.md#10-security--privacy)).
+
+**Retensi:** mengikuti idle timeout 30 menit / absolute timeout 24 jam, dihapus melalui `SupabaseSessionStore.cleanup()`.
+
+---
+
+## `session_messages`
+
+Menyimpan riwayat pesan (user & assistant) per session, digunakan untuk conversation history, contextualizer, dan load ulang percakapan dari sidebar.
+
+| Column       | Type        | Nullable | Default   | Description                                                  |
+| ------------- | ----------- | -------- | ---------- | ---------------------------------------------------------------- |
+| `id`          | bigint      | No       | identity   | Primary key.                                                     |
+| `session_id`  | text        | No       | -          | Foreign key ke `sessions.session_id`, `on delete cascade`.       |
+| `role`        | text        | No       | -          | `user` atau `assistant` (`check constraint`).                    |
+| `content`     | text        | No       | -          | Isi pesan.                                                       |
+| `sources`     | jsonb       | Yes      | -          | Metadata dokumen yang dirujuk (khusus pesan `assistant`); `null` untuk pesan `user` atau jawaban fallback. |
+| `created_at`  | timestamptz | No       | `now()`    | Waktu pesan dibuat, dipakai untuk urutan conversation.           |
+
+**Index:**
+
+| Nama                                    | Kolom                       |
+| ------------------------------------------ | ----------------------------- |
+| `idx_session_messages_session_id`          | `session_id, created_at`       |
+
+**Access control:** RLS aktif, hanya `service_role` (policy `Allow service_role all on session_messages`, akses penuh).
+
+**Retensi:** dihapus otomatis mengikuti penghapusan `sessions` induknya melalui `on delete cascade` (baik karena expiry maupun penghapusan manual oleh user melalui sidebar).
 
 ---
 

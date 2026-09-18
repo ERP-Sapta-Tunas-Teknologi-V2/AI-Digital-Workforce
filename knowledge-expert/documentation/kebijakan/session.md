@@ -453,6 +453,65 @@ Contoh:
 
 Client harus menggunakan `session_id` baru untuk request berikutnya.
 
+# 7.5 Sidebar Riwayat Percakapan
+
+Widget chat publik (`/`) menampilkan daftar percakapan sebelumnya pada sidebar.
+
+## 7.5.1 Prinsip
+
+Karena widget chat publik tidak memiliki authentication, kepemilikan daftar percakapan ditentukan oleh **browser client**, bukan oleh backend:
+
+```text
+Backend
+→ tidak menyimpan mapping "session_id milik siapa"
+
+Client (localStorage)
+→ menyimpan daftar session_id yang pernah dibuat oleh browser tersebut
+```
+
+Konsekuensinya, `session_id` harus tetap diperlakukan sebagai identifier sensitif (lihat [10.2](#102-session-id)) karena siapa pun yang mengetahui `session_id` dapat mengambil maupun menghapus riwayatnya melalui endpoint terkait, tanpa validasi ownership.
+
+## 7.5.2 Judul Percakapan
+
+Judul (`title`) diisi otomatis dari potongan pertanyaan pertama user (maksimal 40 karakter) saat session baru dibuat, dan ditampilkan pada sidebar untuk membedakan setiap percakapan.
+
+## 7.5.3 Sumber pada Riwayat Pesan
+
+Setiap pesan `assistant` yang dihasilkan dari jawaban RAG (bukan fallback) menyimpan metadata dokumen yang dirujuk (`sources`) bersama isi jawabannya. Tujuannya agar saat percakapan lama dibuka kembali dari sidebar, sitasi/sumber yang ditampilkan pada jawaban tetap konsisten dengan yang muncul saat jawaban pertama kali diberikan, tanpa perlu retrieval ulang.
+
+Field yang disimpan mengikuti field yang sama dengan `metadata.sources` pada respons `/api/chat` (lihat [Sources](../api-operasional/api-contract.md#sources)), bukan objek metadata mentah internal (`retrieval_score`, `rerank_score`, `chunk_index`, `fingerprint`, `content`, `embedding` tidak disimpan).
+
+Pesan `user` dan jawaban fallback (`"Informasi tidak ditemukan..."`) tidak memiliki `sources`.
+
+## 7.5.4 Endpoint Terkait
+
+| Endpoint                     | Method | Fungsi                                                  |
+| ------------------------------ | ------ | ---------------------------------------------------------- |
+| `POST /api/sessions`          | POST   | Mengambil metadata sejumlah session (title, waktu) berdasarkan daftar `session_id` yang dikirim client. |
+| `GET /api/sessions/<id>`      | GET    | Mengambil riwayat pesan lengkap satu session untuk ditampilkan ulang di chat window. |
+| `DELETE /api/sessions/<id>`   | DELETE | Menghapus session beserta seluruh riwayat pesannya (cascade). |
+
+Detail request/response tersedia pada [`api-contract.md`](../api-operasional/api-contract.md#sessions-sidebar).
+
+## 7.5.5 Penghapusan Percakapan
+
+User dapat menghapus percakapan dari sidebar. Penghapusan bersifat permanen:
+
+```text
+DELETE /api/sessions/<id>
+        │
+        ▼
+sessions row dihapus
+        │
+        ▼
+session_messages ikut terhapus (on delete cascade)
+        │
+        ▼
+Client menghapus session_id dari localStorage
+```
+
+Tidak ada mekanisme undo setelah penghapusan dilakukan.
+
 # 8. Storage
 
 ## 8.1 Production
@@ -463,16 +522,23 @@ Database cocok apabila conversation history perlu disimpan secara persistent.
 
 Redis cocok apabila session membutuhkan akses cepat dan TTL native.
 
-## 8.2 Development
+## 8.2 Storage Implementation
 
-Development dapat menggunakan in-memory storage:
+Storage session menggunakan Supabase (`public.sessions` dan `public.session_messages`), bukan in-memory, agar history tetap tersedia setelah aplikasi restart dan mendukung fitur riwayat percakapan (sidebar) pada widget chat.
 
-```python
-sessions = {}
-messages = {}
+Struktur implementasi:
+
+```text
+SessionManager
+    │
+    ▼
+SupabaseSessionStore
+    │
+    ├── sessions           (metadata session)
+    └── session_messages   (riwayat pesan)
 ```
 
-In-memory storage tidak digunakan untuk production karena data hilang ketika application restart dan tidak cocok untuk multi-instance deployment.
+In-memory store tidak lagi digunakan pada implementasi saat ini, termasuk pada development, karena sidebar riwayat percakapan membutuhkan data yang persist antar reload halaman.
 
 ## 8.3 Database Structure
 
