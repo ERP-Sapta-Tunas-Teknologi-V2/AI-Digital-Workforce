@@ -138,3 +138,25 @@ body{
 ::-webkit-scrollbar{ width:8px; }
 ::-webkit-scrollbar-thumb{ background:var(--border); border-radius:4px; }
 ::-webkit-scrollbar-track{ background:transparent; }
+
+/* Confirm modal */
+.modal-overlay{
+    display:none; position:fixed; inset:0; background:rgba(0,0,0,.6);
+    align-items:center; justify-content:center; z-index:100;
+}
+.modal-overlay.open{ display:flex; }
+.modal{
+    background:var(--panel); border:1px solid var(--border); border-radius:var(--radius);
+    padding:20px; width:340px; max-width:90vw; display:flex; flex-direction:column; gap:14px;
+}
+.modal-header h3{ margin:0; font-size:15px; }
+.modal p{ font-size:13px; color:var(--text-dim); margin:0; line-height:1.5; }
+.modal-actions{ display:flex; justify-content:flex-end; gap:8px; }
+.btn-secondary, .btn-danger{
+    border-radius:8px; padding:8px 14px; font-size:12.5px; cursor:pointer;
+    font-family:inherit; font-weight:600; border:1px solid transparent;
+}
+.btn-secondary{ background:none; border-color:var(--border); color:var(--text); }
+.btn-secondary:hover{ background:var(--panel-2); }
+.btn-danger{ background:#e5484d; color:#fff; }
+.btn-danger:hover{ opacity:.85; }

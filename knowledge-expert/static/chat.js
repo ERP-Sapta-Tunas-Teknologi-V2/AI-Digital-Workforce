@@ -172,7 +172,7 @@ async function loadSessionList() {
             item.querySelector("span").addEventListener("click", () => openSession(s.session_id));
             item.querySelector(".del-btn").addEventListener("click", (e) => {
                 e.stopPropagation();
-                deleteSession(s.session_id);
+                openDeleteConfirm(s.session_id);
             });
             sessionListEl.appendChild(item);
         });
@@ -200,13 +200,39 @@ async function openSession(id) {
     } catch (e) { console.error("open session failed", e); }
 }
 
+const confirmModal = document.getElementById("confirm-modal");
+const confirmCancelBtn = document.getElementById("confirm-cancel-btn");
+const confirmOkBtn = document.getElementById("confirm-ok-btn");
+let pendingDeleteId = null;
+
+function openDeleteConfirm(id) {
+    pendingDeleteId = id;
+    confirmModal.classList.add("open");
+}
+
+function closeDeleteConfirm() {
+    pendingDeleteId = null;
+    confirmModal.classList.remove("open");
+}
+
+confirmCancelBtn.addEventListener("click", closeDeleteConfirm);
+confirmModal.addEventListener("click", (e) => {
+    if (e.target === confirmModal) closeDeleteConfirm();
+});
+confirmOkBtn.addEventListener("click", async () => {
+    const id = pendingDeleteId;
+    closeDeleteConfirm();
+    if (id) await deleteSession(id);
+});
+
 async function deleteSession(id) {
     try {
         await fetch(`${API_BASE}/sessions/${id}`, { method: "DELETE" });
         knownSessionIds = knownSessionIds.filter(s => s !== id);
         localStorage.setItem("session_ids", JSON.stringify(knownSessionIds));
         if (id === sessionId) startNewChat();
-        loadSessionList();
+        await loadSessionList();
+        window.location.reload();
     } catch (e) { console.error("delete session failed", e); }
 }
 

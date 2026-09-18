@@ -24,13 +24,21 @@ function fmtNumber(n) {
     return Number(n || 0).toLocaleString("id-ID");
 }
 
-function fmtDateTime(iso) {
-    if (!iso) return "-";
-    try {
-        return new Date(iso).toLocaleString("id-ID", {
-            day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
-        });
-    } catch { return iso; }
+function fmtDateTime(value) {
+    if (!value) return "-";
+
+    let dateValue = value;
+    if (typeof value === "string") {
+        const wibMatch = value.trim().match(/^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2}:\d{2}) WIB$/i);
+        if (wibMatch) dateValue = `${wibMatch[1]}T${wibMatch[2]}+07:00`;
+    }
+
+    const date = new Date(dateValue);
+    if (Number.isNaN(date.getTime())) return value;
+
+    return date.toLocaleString("id-ID", {
+        day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
+    });
 }
 
 async function apiGet(url, headers = {}) {
