@@ -137,3 +137,68 @@ input:disabled{
     font-size:12px;
     color:#888
 }
+
+.app{
+    display:flex;
+    width:900px;
+    height:600px;
+    margin:40px auto;
+    gap:12px
+}
+
+.sidebar{
+    width:240px;
+    background:white;
+    border:1px solid #ddd;
+    border-radius:12px;
+    display:flex;
+    flex-direction:column;
+    overflow:hidden
+}
+
+.sidebar-header{
+    padding:14px 16px;
+    border-bottom:1px solid #ddd;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    font-weight:bold
+}
+
+#new-chat-button{
+    width:26px;
+    height:26px;
+    padding:0;
+    border-radius:6px;
+    line-height:1
+}
+
+.session-list{
+    flex:1;
+    overflow-y:auto
+}
+
+.session-item{
+    padding:10px 14px;
+    font-size:13px;
+    border-bottom:1px solid #f0f0f0;
+    cursor:pointer;
+    white-space:nowrap;
+    overflow:hidden;
+    text-overflow:ellipsis
+}
+
+.session-item:hover{
+    background:#f5f5f5
+}
+
+.session-item.active{
+    background:#eee;
+    font-weight:bold
+}
+
+.chat{
+    flex:1;
+    width:auto;
+    margin:0
+}

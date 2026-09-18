@@ -1,39 +1,41 @@
 import uuid
 from datetime import datetime, timedelta, timezone
+from utils.supabase_admin import supabase
 
 IDLE_TIMEOUT = timedelta(minutes=30)
 ABSOLUTE_TIMEOUT = timedelta(hours=24)
 
-class MemorySessionStore:
-    def __init__(self):
-        self.sessions = {}
-        self.messages = {}
-
-    def create(self, user_id=None):
+class SupabaseSessionStore:
+    def create(self, user_id=None, title=None):
         now = datetime.now(timezone.utc)
         session_id = str(uuid.uuid4())
 
-        self.sessions[session_id] = {
+        row = {
             "session_id": session_id,
             "user_id": user_id,
-            "created_at": now,
-            "last_activity_at": now,
-            "expires_at": now + IDLE_TIMEOUT,
-            "absolute_expires_at": now + ABSOLUTE_TIMEOUT,
+            "title": title,
+            "created_at": now.isoformat(),
+            "last_activity_at": now.isoformat(),
+            "expires_at": (now + IDLE_TIMEOUT).isoformat(),
+            "absolute_expires_at": (now + ABSOLUTE_TIMEOUT).isoformat(),
         }
-        self.messages[session_id] = []
 
-        return self.sessions[session_id]
+        supabase.table("sessions").insert(row).execute()
+        return row
 
     def get(self, session_id):
-        session = self.sessions.get(session_id)
+        result = supabase.table("sessions").select("*").eq("session_id", session_id).limit(1).execute()
 
-        if not session:
+        if not result.data:
             return None
 
+        session = result.data[0]
         now = datetime.now(timezone.utc)
 
-        if now >= session["expires_at"] or now >= session["absolute_expires_at"]:
+        expires_at = datetime.fromisoformat(session["expires_at"])
+        absolute_expires_at = datetime.fromisoformat(session["absolute_expires_at"])
+
+        if now >= expires_at or now >= absolute_expires_at:
             return None
 
         return session
@@ -45,23 +47,30 @@ class MemorySessionStore:
             return None
 
         now = datetime.now(timezone.utc)
-        session["last_activity_at"] = now
-        session["expires_at"] = min(
-            now + IDLE_TIMEOUT,
-            session["absolute_expires_at"]
-        )
+        absolute_expires_at = datetime.fromisoformat(session["absolute_expires_at"])
+        new_expires_at = min(now + IDLE_TIMEOUT, absolute_expires_at)
 
+        supabase.table("sessions").update({
+            "last_activity_at": now.isoformat(),
+            "expires_at": new_expires_at.isoformat()
+        }).eq("session_id", session_id).execute()
+
+        session["last_activity_at"] = now.isoformat()
+        session["expires_at"] = new_expires_at.isoformat()
         return session
+
+    def set_title(self, session_id, title):
+        supabase.table("sessions").update({"title": title}).eq("session_id", session_id).execute()
 
     def add_message(self, session_id, role, content):
         if not self.get(session_id):
             return False
 
-        self.messages[session_id].append({
+        supabase.table("session_messages").insert({
+            "session_id": session_id,
             "role": role,
-            "content": content,
-            "created_at": datetime.now(timezone.utc),
-        })
+            "content": content
+        }).execute()
 
         return True
 
@@ -69,17 +78,40 @@ class MemorySessionStore:
         if not self.get(session_id):
             return []
 
-        return self.messages.get(session_id, [])[-limit:]
+        result = (
+            supabase.table("session_messages")
+            .select("role, content, created_at")
+            .eq("session_id", session_id)
+            .order("created_at", desc=True)
+            .limit(limit)
+            .execute()
+        )
+
+        return list(reversed(result.data or []))
+
+    def list_sessions(self, session_ids):
+        """Ambil daftar session (untuk sidebar) berdasarkan list session_id dari localStorage client."""
+        if not session_ids:
+            return []
+
+        result = (
+            supabase.table("sessions")
+            .select("session_id, title, created_at, last_activity_at")
+            .in_("session_id", session_ids)
+            .order("last_activity_at", desc=True)
+            .execute()
+        )
+
+        return result.data or []
 
     def cleanup(self):
-        expired = []
+        now = datetime.now(timezone.utc).isoformat()
 
-        for session_id in list(self.sessions):
-            if not self.get(session_id):
-                expired.append(session_id)
+        result = (
+            supabase.table("sessions")
+            .delete()
+            .or_(f"expires_at.lt.{now},absolute_expires_at.lt.{now}")
+            .execute()
+        )
 
-        for session_id in expired:
-            self.sessions.pop(session_id, None)
-            self.messages.pop(session_id, None)
-
-        return len(expired)
+        return len(result.data or [])

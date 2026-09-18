@@ -773,3 +773,45 @@ $$;
 
 revoke execute on function public.get_dashboard_summary(int) from anon, authenticated;
 grant execute on function public.get_dashboard_summary(int) to service_role;
+
+-- Table: sessions
+
+create table if not exists public.sessions (
+    session_id text primary key,
+    user_id text,
+    title text,
+    created_at timestamptz not null default now(),
+    last_activity_at timestamptz not null default now(),
+    expires_at timestamptz not null,
+    absolute_expires_at timestamptz not null
+);
+
+create index if not exists idx_sessions_last_activity on public.sessions(last_activity_at);
+
+grant select, insert, update, delete on public.sessions to service_role;
+grant usage, select on all sequences in schema public to service_role;
+
+alter table public.sessions enable row level security;
+
+create policy "Allow service_role all on sessions" on public.sessions
+for all to service_role using (true) with check (true);
+
+-- Table: session_messages
+
+create table if not exists public.session_messages (
+    id bigint generated always as identity primary key,
+    session_id text not null references public.sessions(session_id) on delete cascade,
+    role text not null check (role in ('user', 'assistant')),
+    content text not null,
+    created_at timestamptz not null default now()
+);
+
+create index if not exists idx_session_messages_session_id on public.session_messages(session_id, created_at);
+
+grant select, insert, update, delete on public.session_messages to service_role;
+grant usage, select on all sequences in schema public to service_role;
+
+alter table public.session_messages enable row level security;
+
+create policy "Allow service_role all on session_messages" on public.session_messages
+for all to service_role using (true) with check (true);

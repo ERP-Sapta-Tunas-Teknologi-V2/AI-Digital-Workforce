@@ -90,6 +90,11 @@ def chat():
 
     session, is_new = session_manager.get_or_create(session_id)
     session_id = session["session_id"]
+
+    if is_new:
+        title = question[:40] + ("..." if len(question) > 40 else "")
+        session_manager.set_title(session_id, title)
+
     history = session_manager.get_history(session_id, limit=10)
 
     safe_query = anonymize_query(question)
@@ -290,6 +295,32 @@ def feedback():
         return jsonify({"error": "failed to record feedback"}), 500
 
     return jsonify({"message": "feedback recorded"}), 201
+
+@chat_bp.route("/sessions", methods=["POST"])
+def list_sessions():
+    data = request.get_json(silent=True) or {}
+    session_ids = data.get("session_ids")
+
+    if not isinstance(session_ids, list):
+        return jsonify({"error": "session_ids must be an array"}), 400
+
+    sessions = session_manager.list_sessions(session_ids)
+    return jsonify(sessions)
+
+@chat_bp.route("/sessions/<session_id>", methods=["GET"])
+def get_session_history(session_id):
+    session = session_manager.store.get(session_id)
+
+    if not session:
+        return jsonify({"error": "session not found or expired"}), 404
+
+    messages = session_manager.store.get_messages(session_id, limit=100)
+
+    return jsonify({
+        "session_id": session_id,
+        "title": session.get("title"),
+        "messages": messages
+    })
 
 @chat_bp.route("/rate-limit-test", methods=["GET"])
 @limiter.limit("10 per minute")

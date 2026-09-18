@@ -4,20 +4,30 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Knowledge Expert</title>
-    <link rel="stylesheet" href="/static/style.css">
+    <link rel="stylesheet" href="/static/chat.css">
 </head>
 <body>
-    <div class="chat">
-        <div class="header">Knowledge Expert</div>
+    <div class="app">
+        <aside class="sidebar">
+            <div class="sidebar-header">
+                <span>Riwayat</span>
+                <button id="new-chat-button" title="Chat baru">+</button>
+            </div>
+            <div id="session-list" class="session-list"></div>
+        </aside>
 
-        <div id="messages" class="messages">
-            <div class="message bot">Halo, ada yang bisa saya bantu?</div>
+        <div class="chat">
+            <div class="header">Knowledge Expert</div>
+
+            <div id="messages" class="messages">
+                <div class="message bot">Halo, ada yang bisa saya bantu?</div>
+            </div>
+
+            <form id="chat-form" class="input-area">
+                <input id="question" placeholder="Tulis pertanyaan..." autocomplete="off">
+                <button type="submit">Kirim</button>
+            </form>
         </div>
-
-        <form id="chat-form" class="input-area">
-            <input id="question" placeholder="Tulis pertanyaan..." autocomplete="off">
-            <button type="submit">Kirim</button>
-        </form>
     </div>
 
     <script src="/static/chat.js"></script>

@@ -8,6 +8,84 @@ let sessionId = null;
 let lastRequestId = null;
 let sources = [];
 
+const sessionListEl = document.getElementById("session-list");
+const newChatButton = document.getElementById("new-chat-button");
+
+const STORAGE_KEY = "ke_session_ids";
+
+function getStoredSessionIds() {
+    try {
+        return JSON.parse(localStorage.getItem(STORAGE_KEY)) || [];
+    } catch {
+        return [];
+    }
+}
+
+function saveSessionId(id) {
+    const ids = getStoredSessionIds();
+    if (!ids.includes(id)) {
+        ids.unshift(id);
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+    }
+}
+
+async function loadSidebar() {
+    const ids = getStoredSessionIds();
+    sessionListEl.innerHTML = "";
+
+    if (!ids.length) return;
+
+    try {
+        const response = await fetch("/api/sessions", {
+            method: "POST",
+            headers: {"Content-Type": "application/json"},
+            body: JSON.stringify({session_ids: ids})
+        });
+
+        const sessions = await response.json();
+
+        sessions.forEach(s => {
+            const item = document.createElement("div");
+            item.className = "session-item" + (s.session_id === sessionId ? " active" : "");
+            item.textContent = s.title || "(tanpa judul)";
+            item.addEventListener("click", () => loadSession(s.session_id));
+            sessionListEl.appendChild(item);
+        });
+    } catch (error) {
+        console.error("Failed to load sidebar:", error);
+    }
+}
+
+async function loadSession(id) {
+    try {
+        const response = await fetch(`/api/sessions/${id}`);
+        if (!response.ok) return;
+
+        const data = await response.json();
+
+        sessionId = data.session_id;
+        messages.innerHTML = "";
+
+        data.messages.forEach(m => {
+            addMessage(m.content, m.role === "user" ? "user" : "bot");
+        });
+
+        loadSidebar();
+    } catch (error) {
+        console.error("Failed to load session:", error);
+    }
+}
+
+newChatButton.addEventListener("click", () => {
+    sessionId = null;
+    lastRequestId = null;
+    messages.innerHTML = "";
+    addMessage("Halo, ada yang bisa saya bantu?", "bot");
+    loadSidebar();
+});
+
+loadSidebar();
+
 function addMessage(text, type) {
     const el = document.createElement("div");
     el.className = `message ${type}`;
@@ -123,6 +201,10 @@ form.addEventListener("submit", async e => {
         if (contentType.includes("application/json")) {
             const data = await response.json();
             sessionId = data.session_id;
+
+            saveSessionId(sessionId);
+            loadSidebar();
+
             bot.className = "message bot";
             bot.textContent = data.answer;
 
@@ -162,6 +244,7 @@ form.addEventListener("submit", async e => {
 
                 if (data.type === "metadata") {
                     sessionId = data.session_id;
+                    saveSessionId(sessionId);
                     sources = data.sources || [];
                     lastRequestId = data.request_id;
                 }
@@ -210,6 +293,8 @@ form.addEventListener("submit", async e => {
                     if (lastRequestId) {
                         addFeedbackControls(bot, lastRequestId);
                     }
+
+                    loadSidebar();
                 }
             }
         }
