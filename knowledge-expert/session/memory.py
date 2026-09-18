@@ -115,3 +115,13 @@ class SupabaseSessionStore:
         )
 
         return len(result.data or [])
+
+    def delete(self, session_id):
+        result = (
+            supabase.table("sessions")
+            .delete()
+            .eq("session_id", session_id)
+            .execute()
+        )
+
+        return len(result.data or []) > 0

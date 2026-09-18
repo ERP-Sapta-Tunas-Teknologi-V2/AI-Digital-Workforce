@@ -47,8 +47,23 @@ async function loadSidebar() {
         sessions.forEach(s => {
             const item = document.createElement("div");
             item.className = "session-item" + (s.session_id === sessionId ? " active" : "");
-            item.textContent = s.title || "(tanpa judul)";
-            item.addEventListener("click", () => loadSession(s.session_id));
+
+            const label = document.createElement("span");
+            label.className = "session-item-label";
+            label.textContent = s.title || "(tanpa judul)";
+            label.addEventListener("click", () => loadSession(s.session_id));
+
+            const deleteBtn = document.createElement("button");
+            deleteBtn.className = "session-delete-button";
+            deleteBtn.textContent = "×";
+            deleteBtn.title = "Hapus percakapan";
+            deleteBtn.addEventListener("click", (e) => {
+                e.stopPropagation();
+                deleteSession(s.session_id);
+            });
+
+            item.appendChild(label);
+            item.appendChild(deleteBtn);
             sessionListEl.appendChild(item);
         });
     } catch (error) {
@@ -73,6 +88,34 @@ async function loadSession(id) {
         loadSidebar();
     } catch (error) {
         console.error("Failed to load session:", error);
+    }
+}
+
+function removeStoredSessionId(id) {
+    const ids = getStoredSessionIds().filter(existing => existing !== id);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(ids));
+}
+
+async function deleteSession(id) {
+    if (!confirm("Hapus percakapan ini?")) {
+        return;
+    }
+
+    try {
+        await fetch(`/api/sessions/${id}`, { method: "DELETE" });
+    } catch (error) {
+        console.error("Failed to delete session:", error);
+    } finally {
+        removeStoredSessionId(id);
+
+        if (id === sessionId) {
+            sessionId = null;
+            lastRequestId = null;
+            messages.innerHTML = "";
+            addMessage("Halo, ada yang bisa saya bantu?", "bot");
+        }
+
+        loadSidebar();
     }
 }
 

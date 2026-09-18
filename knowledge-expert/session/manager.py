@@ -28,3 +28,6 @@ class SessionManager:
 
     def cleanup(self):
         return self.store.cleanup()
+
+    def delete_session(self, session_id):
+        return self.store.delete(session_id)

@@ -322,6 +322,19 @@ def get_session_history(session_id):
         "messages": messages
     })
 
+@chat_bp.route("/sessions/<session_id>", methods=["DELETE"])
+def delete_session(session_id):
+    try:
+        deleted = session_manager.store.delete(session_id)
+
+        if not deleted:
+            return jsonify({"error": "session not found"}), 404
+
+        return jsonify({"message": "session deleted"}), 200
+
+    except Exception as e:
+        return jsonify({"error": "failed to delete session"}), 500
+
 @chat_bp.route("/rate-limit-test", methods=["GET"])
 @limiter.limit("10 per minute")
 def rate_limit_test():
