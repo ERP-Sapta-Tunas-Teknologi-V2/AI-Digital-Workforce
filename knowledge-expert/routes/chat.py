@@ -21,6 +21,7 @@ session_manager = SessionManager()
 chat_bp = Blueprint("chat", __name__)
 
 MAX_QUERY_LENGTH = 1000
+SOURCE_FIELDS = {"citation", "page", "source", "category", "uploaded_at", "section_title", "version"}
 
 def validate_query(question):
     if not isinstance(question, str):
@@ -214,7 +215,12 @@ def chat():
             if source["citation"] in used
         ]
 
-        session_manager.add_message(session_id, "assistant", answer)
+        stored_sources = [
+            {k: v for k, v in s.items() if k in SOURCE_FIELDS}
+            for s in used_sources
+        ]
+        session_manager.add_message(session_id, "assistant", answer, stored_sources)
+
         Thread(target=update_interaction_response, args=(request_id, answer, used_sources, "completed"), daemon=True).start()
 
         Thread(

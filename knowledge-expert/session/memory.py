@@ -62,14 +62,15 @@ class SupabaseSessionStore:
     def set_title(self, session_id, title):
         supabase.table("sessions").update({"title": title}).eq("session_id", session_id).execute()
 
-    def add_message(self, session_id, role, content):
+    def add_message(self, session_id, role, content, sources=None):
         if not self.get(session_id):
             return False
 
         supabase.table("session_messages").insert({
             "session_id": session_id,
             "role": role,
-            "content": content
+            "content": content,
+            "sources": sources
         }).execute()
 
         return True
@@ -80,7 +81,7 @@ class SupabaseSessionStore:
 
         result = (
             supabase.table("session_messages")
-            .select("role, content, created_at")
+            .select("role, content, sources, created_at")
             .eq("session_id", session_id)
             .order("created_at", desc=True)
             .limit(limit)

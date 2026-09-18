@@ -14,8 +14,8 @@ class SessionManager:
 
         return self.store.create(user_id, title), True
 
-    def add_message(self, session_id, role, content):
-        return self.store.add_message(session_id, role, content)
+    def add_message(self, session_id, role, content, sources=None):
+        return self.store.add_message(session_id, role, content, sources)
 
     def get_history(self, session_id, limit=10):
         return self.store.get_messages(session_id, limit)

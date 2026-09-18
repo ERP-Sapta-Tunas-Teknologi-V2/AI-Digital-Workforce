@@ -803,6 +803,7 @@ create table if not exists public.session_messages (
     session_id text not null references public.sessions(session_id) on delete cascade,
     role text not null check (role in ('user', 'assistant')),
     content text not null,
+    sources jsonb,
     created_at timestamptz not null default now()
 );
 

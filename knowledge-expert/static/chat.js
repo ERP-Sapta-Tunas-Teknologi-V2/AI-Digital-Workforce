@@ -78,11 +78,15 @@ async function loadSession(id) {
 
         const data = await response.json();
 
-        sessionId = data.session_id;
+        sessionId = id;
         messages.innerHTML = "";
 
         data.messages.forEach(m => {
-            addMessage(m.content, m.role === "user" ? "user" : "bot");
+            const bot = addMessage(m.content, m.role === "user" ? "user" : "bot");
+
+            if (m.role === "assistant" && m.sources && m.sources.length) {
+                appendSources(bot, m.sources);
+            }
         });
 
         loadSidebar();
@@ -117,6 +121,26 @@ async function deleteSession(id) {
 
         loadSidebar();
     }
+}
+
+function appendSources(bot, sourceList) {
+    const sourceEl = document.createElement("div");
+    sourceEl.className = "sources";
+
+    const title = document.createElement("b");
+    title.textContent = "Sumber:";
+    sourceEl.appendChild(title);
+
+    sourceList.forEach(source => {
+        const item = document.createElement("div");
+        const index = `[${source.citation}] `;
+        const name = source.source || "Dokumen";
+        const page = source.page ? ` [Halaman ${source.page}]` : "";
+        item.textContent = `${index}${name}${page}`;
+        sourceEl.appendChild(item);
+    });
+
+    bot.appendChild(sourceEl);
 }
 
 newChatButton.addEventListener("click", () => {
@@ -314,23 +338,7 @@ form.addEventListener("submit", async e => {
 
                 if (data.type === "done") {
                     if (sources.length) {
-                        const sourceEl = document.createElement("div");
-                        sourceEl.className = "sources";
-
-                        const title = document.createElement("b");
-                        title.textContent = "Sumber:";
-                        sourceEl.appendChild(title);
-
-                        sources.forEach(source => {
-                            const item = document.createElement("div");
-                            const index = `[${source.citation}] `
-                            const name = source.source || "Dokumen";
-                            const page = source.page ? ` [Halaman ${source.page}]` : "";
-                            item.textContent = `${index}${name}${page}`;
-                            sourceEl.appendChild(item);
-                        });
-
-                        bot.appendChild(sourceEl);
+                        appendSources(bot, sources);
                     }
 
                     if (lastRequestId) {
