@@ -170,8 +170,8 @@ async function loadSessionList() {
             const item = document.createElement("div");
             item.className = "session-item" + (s.session_id === sessionId ? " active" : "");
             item.dataset.id = s.session_id;
-            item.innerHTML = `<span>${s.title || "Percakapan baru"}</span><button class="del-btn" title="Hapus">✕</button>`;
-            item.querySelector("span").addEventListener("click", () => openSession(s.session_id));
+            item.innerHTML = `<span class="session-title">${s.title || "Percakapan baru"}</span><button class="del-btn" title="Hapus">✕</button>`;
+            item.querySelector(".session-title").addEventListener("click", () => openSession(s.session_id));
             item.querySelector(".del-btn").addEventListener("click", (e) => {
                 e.stopPropagation();
                 openDeleteConfirm(s.session_id);

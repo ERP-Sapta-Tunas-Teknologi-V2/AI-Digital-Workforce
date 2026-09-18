@@ -39,14 +39,14 @@ body{
 .session-item{
     padding:10px 12px; border-radius:10px; margin-bottom:4px; cursor:pointer;
     font-size:13px; color:var(--text-dim); border:1px solid transparent;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
     display:flex; align-items:center; justify-content:space-between; gap:6px;
 }
 .session-item:hover{ background:var(--panel-2); color:var(--text); }
 .session-item.active{ background:var(--panel-2); border-color:var(--border); color:var(--text); }
+.session-item .session-title{ flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .session-item .del-btn{
     opacity:0; background:none; border:none; color:var(--text-dim); cursor:pointer;
-    font-size:14px; line-height:1; padding:2px;
+    font-size:14px; line-height:1; padding:2px; flex-shrink:0;
 }
 .session-item:hover .del-btn{ opacity:1; }
 .session-item .del-btn:hover{ color:var(--text); }
