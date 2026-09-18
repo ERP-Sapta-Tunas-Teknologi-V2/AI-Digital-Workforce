@@ -1,106 +1,271 @@
 <!DOCTYPE html>
 <html lang="id">
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Document Dashboard</title>
+    <title>Knowledge Expert — Dashboard</title>
     <link rel="stylesheet" href="/static/dashboard.css">
 </head>
+
 <body>
-
-<div class="container">
-    <header>
-        <div>
-            <h1>Document Dashboard</h1>
-            <p>Kelola dokumen Knowledge Base</p>
+    <div id="sidebar">
+        <div id="sidebar-header">
+            <h1>Dashboard</h1>
         </div>
-        <a href="/" class="chat-link">Chatbot</a>
-    </header>
+        <nav id="nav-list">
+            <button class="nav-item active" data-view="overview">Ringkasan</button>
+            <button class="nav-item" data-view="documents">Dokumen</button>
+            <button class="nav-item" data-view="faq">Top FAQ</button>
+            <button class="nav-item" data-view="feedback">Jawaban Bermasalah</button>
+            <button class="nav-item" data-view="flags">Dokumen Ditandai</button>
+            <button class="nav-item" data-view="cost">Biaya &amp; Budget</button>
+        </nav>
+        <div id="sidebar-footer">
+            <a href="/" id="back-to-chat">← Kembali ke Chat</a>
+        </div>
+    </div>
 
-    <section class="card">
-        <h2>Upload Dokumen</h2>
+    <div id="main">
+        <div id="topbar">
+            <div class="dot"></div>
+            <h2 id="topbar-title">Ringkasan</h2>
+            <div id="topbar-actions"></div>
+        </div>
 
-        <form id="upload-form">
-            <div class="form-row">
-                <div class="field">
-                    <label>File</label>
-                    <input
-                        type="file"
-                        id="file"
-                        accept=".pdf,.docx,.xlsx,.pptx"
-                        required
-                    >
+        <div id="content">
+
+            <!-- OVERVIEW -->
+            <section class="view active" id="view-overview">
+                <div class="controls-row">
+                    <label>Rentang hari:
+                        <select id="overview-days">
+                            <option value="7">7 hari</option>
+                            <option value="30" selected>30 hari</option>
+                            <option value="90">90 hari</option>
+                        </select>
+                    </label>
                 </div>
 
-                <div class="field">
-                    <label>Kategori</label>
-                    <select id="category" required>
-                        <option value="">Pilih kategori</option>
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Total Pertanyaan</span>
+                        <span class="stat-value" id="stat-total-queries">–</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Total Feedback</span>
+                        <span class="stat-value" id="stat-total-feedback">–</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Feedback Positif</span>
+                        <span class="stat-value" id="stat-positive-rate">–</span>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Volume Pertanyaan</h3>
+                    <div id="volume-chart" class="bar-chart"></div>
+                </div>
+
+                <div class="panel">
+                    <h3>Dokumen Paling Sering Dirujuk</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Sumber</th><th>Kategori</th><th>Jumlah Rujukan</th></tr>
+                        </thead>
+                        <tbody id="top-docs-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- DOCUMENTS -->
+            <section class="view" id="view-documents">
+                <div class="controls-row">
+                    <label>Kategori:
+                        <select id="doc-category-filter">
+                            <option value="">Semua</option>
+                            <option value="sop">SOP</option>
+                            <option value="datasheet">Datasheet</option>
+                            <option value="pricelist">Pricelist</option>
+                            <option value="guide">Guide</option>
+                            <option value="meeting">Meeting</option>
+                            <option value="training">Training</option>
+                        </select>
+                    </label>
+                    <button class="btn-secondary" id="sync-all-btn">Sync Semua</button>
+                    <button class="btn-primary" id="upload-open-btn">+ Upload Dokumen</button>
+                </div>
+
+                <div class="panel">
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                <th>Nama File</th>
+                                <th>Kategori</th>
+                                <th>Status</th>
+                                <th>Versi</th>
+                                <th>Flags</th>
+                                <th>Diunggah</th>
+                                <th>Terakhir Ingest</th>
+                                <th>Aksi</th>
+                            </tr>
+                        </thead>
+                        <tbody id="documents-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- TOP FAQ -->
+            <section class="view" id="view-faq">
+                <div class="controls-row">
+                    <label>Rentang hari:
+                        <select id="faq-days">
+                            <option value="7">7 hari</option>
+                            <option value="30" selected>30 hari</option>
+                            <option value="90">90 hari</option>
+                        </select>
+                    </label>
+                    <label>Jumlah:
+                        <select id="faq-limit">
+                            <option value="5" selected>5</option>
+                            <option value="10">10</option>
+                            <option value="20">20</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="panel">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>#</th><th>Pertanyaan</th><th>Total</th><th>Terakhir Ditanya</th></tr>
+                        </thead>
+                        <tbody id="faq-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- PROBLEMATIC ANSWERS -->
+            <section class="view" id="view-feedback">
+                <div class="controls-row">
+                    <label>Rentang hari:
+                        <select id="fb-days">
+                            <option value="7">7 hari</option>
+                            <option value="30" selected>30 hari</option>
+                            <option value="90">90 hari</option>
+                        </select>
+                    </label>
+                    <label>Min. downvote:
+                        <select id="fb-min-downvotes">
+                            <option value="1" selected>1</option>
+                            <option value="2">2</option>
+                            <option value="3">3</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="panel" id="feedback-list"></div>
+            </section>
+
+            <!-- FLAGGED DOCUMENTS -->
+            <section class="view" id="view-flags">
+                <div class="controls-row">
+                    <label>Rentang hari:
+                        <select id="flags-days">
+                            <option value="7">7 hari</option>
+                            <option value="30" selected>30 hari</option>
+                            <option value="90">90 hari</option>
+                        </select>
+                    </label>
+                </div>
+                <div class="panel">
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Sumber</th><th>Chunk</th><th>Downvote</th><th>Total Rujukan</th><th>Rasio</th></tr>
+                        </thead>
+                        <tbody id="flags-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+            <!-- COST -->
+            <section class="view" id="view-cost">
+                <div class="stat-grid">
+                    <div class="stat-card">
+                        <span class="stat-label">Budget Harian</span>
+                        <span class="stat-value" id="cost-daily-value">–</span>
+                        <div class="progress-bar"><div class="progress-fill" id="cost-daily-fill"></div></div>
+                        <span class="stat-sub" id="cost-daily-status">–</span>
+                    </div>
+                    <div class="stat-card">
+                        <span class="stat-label">Budget Mingguan</span>
+                        <span class="stat-value" id="cost-weekly-value">–</span>
+                        <div class="progress-bar"><div class="progress-fill" id="cost-weekly-fill"></div></div>
+                        <span class="stat-sub" id="cost-weekly-status">–</span>
+                    </div>
+                </div>
+
+                <div class="panel">
+                    <h3>Biaya 7 Hari Terakhir</h3>
+                    <table class="data-table">
+                        <thead>
+                            <tr><th>Tanggal</th><th>Total Biaya</th><th>Token</th><th>Chat</th><th>Index Runs</th></tr>
+                        </thead>
+                        <tbody id="weekly-cost-body"></tbody>
+                    </table>
+                </div>
+            </section>
+
+        </div>
+    </div>
+
+    <!-- Upload modal -->
+    <div id="upload-modal" class="modal-overlay">
+        <div class="modal">
+            <div class="modal-header">
+                <h3>Upload Dokumen</h3>
+                <button class="modal-close" id="upload-close-btn">✕</button>
+            </div>
+            <form id="upload-form">
+                <label class="field-label">Kategori
+                    <select id="upload-category" required>
                         <option value="sop">SOP</option>
                         <option value="datasheet">Datasheet</option>
                         <option value="pricelist">Pricelist</option>
-                        <option value="guide">Technical Guide</option>
-                        <option value="meeting">Meeting Notes</option>
-                        <option value="training">Training Material</option>
+                        <option value="guide">Guide</option>
+                        <option value="meeting">Meeting</option>
+                        <option value="training">Training</option>
                     </select>
+                </label>
+                <label class="field-label">File
+                    <input type="file" id="upload-file" accept=".pdf,.docx,.xlsx,.pptx" required>
+                </label>
+                <label class="checkbox-label">
+                    <input type="checkbox" id="upload-replace"> Ganti jika sudah ada
+                </label>
+                <div id="upload-status"></div>
+                <div class="modal-actions">
+                    <button type="button" class="btn-secondary" id="upload-cancel-btn">Batal</button>
+                    <button type="submit" class="btn-primary" id="upload-submit-btn">Upload</button>
                 </div>
+            </form>
+        </div>
+    </div>
 
-                <button type="submit" id="upload-button">
-                    Upload
-                </button>
+    <!-- Confirm modal -->
+    <div id="confirm-modal" class="modal-overlay">
+        <div class="modal modal-sm">
+            <div class="modal-header">
+                <h3 id="confirm-title">Konfirmasi</h3>
             </div>
-        </form>
-
-        <div id="upload-message"></div>
-    </section>
-
-    <section class="card">
-        <div class="toolbar">
-            <div>
-                <h2>Dokumen</h2>
-                <span id="document-count">0 dokumen</span>
-            </div>
-
-            <div class="filters">
-                <select id="filter-category">
-                    <option value="">Semua kategori</option>
-                    <option value="sop">SOP</option>
-                    <option value="datasheet">Datasheet</option>
-                    <option value="pricelist">Pricelist</option>
-                    <option value="guide">Technical Guide</option>
-                    <option value="meeting">Meeting Notes</option>
-                    <option value="training">Training Material</option>
-                </select>
-
-                <button id="refresh-button">
-                    Refresh
-                </button>
+            <p id="confirm-message"></p>
+            <div class="modal-actions">
+                <button type="button" class="btn-secondary" id="confirm-cancel-btn">Batal</button>
+                <button type="button" class="btn-danger" id="confirm-ok-btn">Ya, lanjutkan</button>
             </div>
         </div>
+    </div>
 
-        <div class="table-wrapper">
-            <table>
-                <thead>
-                    <tr>
-                        <th>Dokumen</th>
-                        <th>Kategori</th>
-                        <th>Ukuran</th>
-                        <th>Upload</th>
-                        <th>Status Ingest</th>
-                        <th>Ingest Terakhir</th>
-                        <th>Aksi</th>
-                    </tr>
-                </thead>
-                <tbody id="documents"></tbody>
-            </table>
-        </div>
+    <div id="toast-container"></div>
 
-        <div id="empty" class="empty">
-            Tidak ada dokumen.
-        </div>
-    </section>
-</div>
-
-<script src="/static/dashboard.js"></script>
+    <script src="/static/dashboard.js"></script>
 </body>
+
 </html>

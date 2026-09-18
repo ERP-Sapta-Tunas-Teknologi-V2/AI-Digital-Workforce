@@ -1,401 +1,586 @@
-const uploadForm = document.getElementById("upload-form");
-const fileInput = document.getElementById("file");
-const categoryInput = document.getElementById("category");
-const uploadButton = document.getElementById("upload-button");
-const uploadMessage = document.getElementById("upload-message");
+const API_BASE = "/api";
+const ADMIN_BASE = "/api/admin";
+// TODO: sesuaikan dengan mekanisme auth nyata (mis. ambil dari session/login), lihat utils/permissions.py require_role("Admin")
+const ADMIN_ROLE_HEADER = { "X-User-Role": "Admin" };
 
-const documentsEl = document.getElementById("documents");
-const emptyEl = document.getElementById("empty");
-const countEl = document.getElementById("document-count");
+const CATEGORIES = ["sop", "datasheet", "pricelist", "guide", "meeting", "training"];
 
-const filterCategory = document.getElementById("filter-category");
-const refreshButton = document.getElementById("refresh-button");
+// ---------- Utilities ----------
 
-const categoryMap = {
-    sop: "SOP",
-    datasheet: "Datasheet",
-    pricelist: "Pricelist",
-    guide: "Technical Guide",
-    meeting: "Meeting Notes",
-    training: "Training Material"
-};
+function toast(message, type = "") {
+    const el = document.createElement("div");
+    el.className = `toast ${type}`;
+    el.textContent = message;
+    document.getElementById("toast-container").appendChild(el);
+    setTimeout(() => el.remove(), 4000);
+}
 
-let documents = [];
+function fmtCurrency(n) {
+    const val = Number(n || 0);
+    return "$" + val.toFixed(4);
+}
 
-async function api(url, options = {}) {
-    const response = await fetch(url, options);
+function fmtNumber(n) {
+    return Number(n || 0).toLocaleString("id-ID");
+}
 
-    let data = {};
+function fmtDateTime(iso) {
+    if (!iso) return "-";
     try {
-        data = await response.json();
-    } catch {}
+        return new Date(iso).toLocaleString("id-ID", {
+            day: "2-digit", month: "short", year: "numeric", hour: "2-digit", minute: "2-digit"
+        });
+    } catch { return iso; }
+}
 
-    if (!response.ok) {
-        const error = new Error(data.error || "Terjadi kesalahan.");
-        error.status = response.status;
-        error.data = data;
-        throw error;
+async function apiGet(url, headers = {}) {
+    const res = await fetch(url, { headers });
+    if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`);
+    return res.json();
+}
+
+async function apiJson(url, method, body, headers = {}) {
+    const res = await fetch(url, {
+        method,
+        headers: { "Content-Type": "application/json", ...headers },
+        body: body ? JSON.stringify(body) : undefined
+    });
+    let data = null;
+    try { data = await res.json(); } catch { /* no body */ }
+    if (!res.ok) {
+        const msg = (data && (data.error || data.message)) || `${method} ${url} failed: ${res.status}`;
+        throw new Error(msg);
     }
-
     return data;
 }
 
-function formatSize(bytes) {
-    if (!bytes) return "-";
+// ---------- Navigation ----------
 
-    const units = ["B", "KB", "MB", "GB"];
-    let size = bytes;
-    let unit = 0;
+const VIEW_TITLES = {
+    overview: "Ringkasan",
+    documents: "Dokumen",
+    faq: "Top FAQ",
+    feedback: "Jawaban Bermasalah",
+    flags: "Dokumen Ditandai",
+    cost: "Biaya & Budget"
+};
 
-    while (size >= 1024 && unit < units.length - 1) {
-        size /= 1024;
-        unit++;
+function switchView(view) {
+    document.querySelectorAll(".nav-item").forEach(el => el.classList.toggle("active", el.dataset.view === view));
+    document.querySelectorAll(".view").forEach(el => el.classList.toggle("active", el.id === `view-${view}`));
+    document.getElementById("topbar-title").textContent = VIEW_TITLES[view] || view;
+
+    if (view === "overview") loadOverview();
+    if (view === "documents") loadDocuments();
+    if (view === "faq") loadFaq();
+    if (view === "feedback") loadProblematicAnswers();
+    if (view === "flags") loadFlaggedDocuments();
+    if (view === "cost") loadCost();
+}
+
+document.querySelectorAll(".nav-item").forEach(btn => {
+    btn.addEventListener("click", () => switchView(btn.dataset.view));
+});
+
+// ---------- Overview ----------
+
+async function loadOverview() {
+    const days = document.getElementById("overview-days").value;
+    try {
+        const data = await apiGet(`${API_BASE}/analytics/dashboard-summary?days=${days}`, ADMIN_ROLE_HEADER);
+
+        document.getElementById("stat-total-queries").textContent = fmtNumber(data.total_queries);
+        document.getElementById("stat-total-feedback").textContent = fmtNumber(data.total_feedback);
+        document.getElementById("stat-positive-rate").textContent = `${data.positive_feedback_rate ?? 0}%`;
+
+        renderVolumeChart(data.query_volume || []);
+        renderTopDocs(data.top_referenced_documents || []);
+    } catch (e) {
+        console.error(e);
+        toast("Gagal memuat ringkasan", "error");
     }
-
-    return `${size.toFixed(unit ? 1 : 0)} ${units[unit]}`;
 }
 
-function statusLabel(status) {
-    const labels = {
-        not_ingested: "Belum ingest",
-        processing: "Processing",
-        success: "Sudah ingest",
-        failed: "Gagal"
-    };
-
-    return labels[status] || status;
-}
-
-function statusClass(status) {
-    return `status status-${status}`;
-}
-
-function renderDocuments() {
-    const category = filterCategory.value;
-
-    const filtered = [...(
-        category
-            ? documents.filter(doc => doc.category === category)
-            : documents
-    )].sort((a, b) =>
-        new Date(b.uploaded_at) - new Date(a.uploaded_at)
-    );
-
-    documentsEl.innerHTML = "";
-
-    countEl.textContent = `${filtered.length} dokumen`;
-    emptyEl.style.display = filtered.length ? "none" : "block";
-
-    filtered.forEach(doc => {
-        const tr = document.createElement("tr");
-
-        const ingestDisabled =
-            doc.ingest_status === "processing";
-
-        tr.innerHTML = `
-            <td>
-                <div class="filename">${escapeHtml(doc.filename)}</div>
-                <div class="path">${escapeHtml(doc.path)}</div>
-                <div class="flags">${flagBadges(doc.flags)}${versionBadge(doc)}</div>
-            </td>
-
-            <td>${escapeHtml(categoryMap[doc.category] ?? doc.category)}</td>
-
-            <td>${formatSize(doc.size)}</td>
-
-            <td>
-                <div>${doc.uploaded_at_wib || "-"}</div>
-            </td>
-
-            <td>
-                <span class="${statusClass(doc.ingest_status)}">
-                    ${statusLabel(doc.ingest_status)}
-                </span>
-            </td>
-
-            <td>
-                ${doc.last_ingested_at_wib || "-"}
-            </td>
-
-            <td>
-                <button
-                    class="download-button"
-                    data-action="download"
-                    data-category="${escapeAttr(doc.category)}"
-                    data-filename="${escapeAttr(doc.filename)}">
-                    Download
-                </button>
-
-                <button
-                    class="ingest-button"
-                    data-action="ingest"
-                    data-category="${escapeAttr(doc.category)}"
-                    data-filename="${escapeAttr(doc.filename)}"
-                    ${doc.ingest_status === "processing" || doc.is_archived ? "disabled" : ""}
-                >
-                    ${doc.is_archived ? "Arsip" : (doc.ingest_status === "processing" ? "Processing..." : "Ingest")}
-                </button>
-
-                ${
-                    doc.ingest_status !== "not_ingested" && doc.ingest_status !== "processing"
-                    ? `
-                    <button
-                        class="un-ingest-button"
-                        data-action="un-ingest"
-                        data-category="${escapeAttr(doc.category)}"
-                        data-filename="${escapeAttr(doc.filename)}"
-                    >
-                        Un-ingest
-                    </button>
-                    `
-                    : ""
-                }
-
-                <button
-                    class="delete-button"
-                    data-action="delete"
-                    data-category="${escapeAttr(doc.category)}"
-                    data-filename="${escapeAttr(doc.filename)}"
-                >
-                    Hapus
-                </button>
-            </td>
+function renderVolumeChart(volume) {
+    const el = document.getElementById("volume-chart");
+    el.innerHTML = "";
+    if (!volume.length) {
+        el.innerHTML = `<div class="empty-state">Belum ada data</div>`;
+        return;
+    }
+    const max = Math.max(...volume.map(v => v.total), 1);
+    volume.forEach(v => {
+        const col = document.createElement("div");
+        col.className = "bar-col";
+        const heightPct = Math.max((v.total / max) * 100, 2);
+        col.innerHTML = `
+            <div class="bar" style="height:${heightPct}%" title="${v.total} pertanyaan"></div>
+            <span class="bar-label">${new Date(v.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</span>
         `;
-
-        documentsEl.appendChild(tr);
+        el.appendChild(col);
     });
 }
 
-async function loadDocuments() {
-    try {
-        refreshButton.disabled = true;
-
-        const category = filterCategory.value;
-        const url = category
-            ? `/api/admin/documents?category=${encodeURIComponent(category)}`
-            : "/api/admin/documents";
-
-        documents = await api(url);
-        renderDocuments();
-    } catch (error) {
-        alert(error.message);
-    } finally {
-        refreshButton.disabled = false;
-    }
-}
-
-uploadForm.addEventListener("submit", async event => {
-    event.preventDefault();
-
-    const file = fileInput.files[0];
-    const category = categoryInput.value;
-
-    if (!file || !category) {
+function renderTopDocs(docs) {
+    const body = document.getElementById("top-docs-body");
+    body.innerHTML = "";
+    if (!docs.length) {
+        body.innerHTML = `<tr><td colspan="3" class="empty-state">Belum ada data</td></tr>`;
         return;
     }
+    docs.forEach(d => {
+        const tr = document.createElement("tr");
+        tr.innerHTML = `<td>${d.source}</td><td>${d.category || "-"}</td><td>${fmtNumber(d.referenced_count)}</td>`;
+        body.appendChild(tr);
+    });
+}
 
-    await uploadFile(file, category, false);
-});
+document.getElementById("overview-days").addEventListener("change", loadOverview);
 
-async function uploadFile(file, category, replace) {
-    const formData = new FormData();
+// ---------- Documents (admin.py) ----------
 
-    formData.append("file", file);
-    formData.append("category", category);
-    formData.append("replace", replace);
+async function loadDocuments() {
+    const category = document.getElementById("doc-category-filter").value;
+    const url = category ? `${ADMIN_BASE}/documents?category=${category}` : `${ADMIN_BASE}/documents`;
+    const body = document.getElementById("documents-body");
+    body.innerHTML = `<tr><td colspan="8" class="empty-state">Memuat...</td></tr>`;
 
     try {
-        uploadButton.disabled = true;
-        uploadButton.textContent = "Uploading...";
-        uploadMessage.textContent = "";
+        const files = await apiGet(url, ADMIN_ROLE_HEADER);
+        body.innerHTML = "";
 
-        const data = await api("/api/admin/documents/upload", {
-            method: "POST",
-            body: formData
-        });
-
-        uploadMessage.className = "success";
-        uploadMessage.textContent = data.message;
-
-        uploadForm.reset();
-        await loadDocuments();
-
-    } catch (error) {
-        if (error.status === 409 && error.data?.exists) {
-            const replace = confirm(
-                `${error.data.message}\n\nKlik OK untuk replace file.`
-            );
-
-            if (replace) {
-                await uploadFile(file, category, true);
-            }
-
+        if (!files.length) {
+            body.innerHTML = `<tr><td colspan="8" class="empty-state">Tidak ada dokumen</td></tr>`;
             return;
         }
 
-        uploadMessage.className = "error";
-        uploadMessage.textContent = error.message;
+        files.forEach(f => {
+            const tr = document.createElement("tr");
+            const flagsHtml = (f.flags || [])
+                .map(fl => `<span class="flag-tag" title="${fl.detail || ""}">${fl.type}</span>`)
+                .join("");
 
-    } finally {
-        uploadButton.disabled = false;
-        uploadButton.textContent = "Upload";
-    }
-}
+            const statusClass = f.version_status === "superseded" ? "superseded" : (f.ingest_status || "not_ingested");
 
-documentsEl.addEventListener("click", async event => {
-    const button = event.target.closest("button");
-    if (!button) return;
+            tr.innerHTML = `
+                <td>${f.filename}${f.is_archived ? ' <span class="badge">arsip</span>' : ""}</td>
+                <td>${f.category}</td>
+                <td><span class="badge ${statusClass}">${f.version_status === "superseded" ? "superseded" : f.ingest_status}</span></td>
+                <td>${f.version_status || "-"}</td>
+                <td>${flagsHtml || "-"}</td>
+                <td>${fmtDateTime(f.uploaded_at_wib || f.uploaded_at)}</td>
+                <td>${fmtDateTime(f.last_ingested_at_wib || f.last_ingested_at)}</td>
+                <td class="row-actions"></td>
+            `;
 
-    const action = button.dataset.action;
-    const category = button.dataset.category;
-    const filename = button.dataset.filename;
+            const actionsCell = tr.querySelector(".row-actions");
+            actionsCell.appendChild(makeActionBtn("Ingest", () => runIngest(f.category, f.filename)));
+            actionsCell.appendChild(makeActionBtn("Un-ingest", () => runUnIngest(f.category, f.filename)));
+            actionsCell.appendChild(makeActionBtn("Unduh", () => downloadDocument(f.category, f.filename)));
+            const delBtn = makeActionBtn("Hapus", () => confirmAction(
+                "Hapus Dokumen",
+                `Hapus "${f.filename}" secara permanen dari storage dan index?`,
+                () => deleteDocument(f.category, f.filename)
+            ));
+            delBtn.classList.add("danger");
+            actionsCell.appendChild(delBtn);
 
-    if (action === "download") {
-        downloadDocument(category, filename);
-        return;
-    }
-
-    if (action === "ingest") {
-        await ingestDocument(category, filename);
-    }
-
-    if (action === "un-ingest") {
-        await unIngestDocument(category, filename);
-    }
-
-    if (action === "delete") {
-        await deleteDocument(category, filename);
-    }
-});
-
-function downloadDocument(category, filename) {
-    const params = new URLSearchParams({
-        category,
-        filename
-    });
-
-    window.location.href = `/api/admin/documents/download?${params}`;
-}
-
-async function ingestDocument(category, filename) {
-    if (!confirm(`Ingest "${filename}" ke vector database?`)) {
-        return;
-    }
-
-    try {
-        await api("/api/admin/ingest", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                category,
-                filename
-            })
+            body.appendChild(tr);
         });
-
-        await loadDocuments();
-    } catch (error) {
-        alert(error.message);
+    } catch (e) {
+        console.error(e);
+        body.innerHTML = `<tr><td colspan="8" class="empty-state">Gagal memuat dokumen</td></tr>`;
+        toast("Gagal memuat daftar dokumen", "error");
     }
 }
 
-async function unIngestDocument(category, filename) {
-    if (!confirm(
-        `Un-ingest "${filename}"?\n\n` +
-        `File tetap ada di MinIO, tetapi data vector akan dihapus.`
-    )) {
-        return;
-    }
+function makeActionBtn(label, onClick) {
+    const btn = document.createElement("button");
+    btn.textContent = label;
+    btn.addEventListener("click", onClick);
+    return btn;
+}
 
+async function runIngest(category, filename) {
     try {
-        await api("/api/admin/un-ingest", {
-            method: "POST",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                category,
-                filename
-            })
-        });
+        const data = await apiJson(`${ADMIN_BASE}/ingest`, "POST", { category, filename }, ADMIN_ROLE_HEADER);
+        toast(data.message || "Ingest dimulai", "success");
+        setTimeout(loadDocuments, 1500);
+    } catch (e) {
+        toast(e.message, "error");
+    }
+}
 
-        await loadDocuments();
-    } catch (error) {
-        alert(error.message);
+async function runUnIngest(category, filename) {
+    try {
+        const data = await apiJson(`${ADMIN_BASE}/un-ingest`, "POST", { category, filename }, ADMIN_ROLE_HEADER);
+        toast(data.message || "Un-ingest berhasil", "success");
+        loadDocuments();
+    } catch (e) {
+        toast(e.message, "error");
     }
 }
 
 async function deleteDocument(category, filename) {
-    if (!confirm(
-        `Hapus "${filename}"?\n\n` +
-        `File MinIO dan data vector Supabase akan dihapus.`
-    )) {
-        return;
+    try {
+        const res = await fetch(`${ADMIN_BASE}/documents/delete`, {
+            method: "DELETE",
+            headers: { "Content-Type": "application/json", ...ADMIN_ROLE_HEADER },
+            body: JSON.stringify({ category, filename })
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "Gagal menghapus dokumen");
+        toast(data.message || "Dokumen dihapus", "success");
+        loadDocuments();
+    } catch (e) {
+        toast(e.message, "error");
     }
+}
+
+async function downloadDocument(category, filename) {
+    try {
+        const url = `${ADMIN_BASE}/documents/download?category=${encodeURIComponent(category)}&filename=${encodeURIComponent(filename)}`;
+        const res = await fetch(url, { headers: ADMIN_ROLE_HEADER });
+        if (!res.ok) throw new Error("Gagal mengunduh dokumen");
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = filename;
+        a.click();
+        URL.revokeObjectURL(a.href);
+    } catch (e) {
+        toast(e.message, "error");
+    }
+}
+
+async function syncAll() {
+    try {
+        const data = await apiJson(`${ADMIN_BASE}/sync`, "POST", {}, ADMIN_ROLE_HEADER);
+        toast(data.message || "Sync dimulai", "success");
+        setTimeout(loadDocuments, 2000);
+    } catch (e) {
+        toast(e.message, "error");
+    }
+}
+
+document.getElementById("doc-category-filter").addEventListener("change", loadDocuments);
+document.getElementById("sync-all-btn").addEventListener("click", syncAll);
+
+// ---------- Upload modal ----------
+
+const uploadModal = document.getElementById("upload-modal");
+const uploadForm = document.getElementById("upload-form");
+const uploadStatus = document.getElementById("upload-status");
+
+function openUploadModal() {
+    uploadForm.reset();
+    uploadStatus.textContent = "";
+    uploadStatus.className = "";
+    uploadModal.classList.add("open");
+}
+function closeUploadModal() {
+    uploadModal.classList.remove("open");
+}
+
+document.getElementById("upload-open-btn").addEventListener("click", openUploadModal);
+document.getElementById("upload-close-btn").addEventListener("click", closeUploadModal);
+document.getElementById("upload-cancel-btn").addEventListener("click", closeUploadModal);
+uploadModal.addEventListener("click", (e) => { if (e.target === uploadModal) closeUploadModal(); });
+
+uploadForm.addEventListener("submit", async (e) => {
+    e.preventDefault();
+
+    const category = document.getElementById("upload-category").value;
+    const fileInput = document.getElementById("upload-file");
+    const replace = document.getElementById("upload-replace").checked;
+    const submitBtn = document.getElementById("upload-submit-btn");
+
+    if (!fileInput.files.length) return;
+
+    const formData = new FormData();
+    formData.append("file", fileInput.files[0]);
+    formData.append("category", category);
+    formData.append("replace", replace ? "true" : "false");
+
+    submitBtn.disabled = true;
+    uploadStatus.textContent = "Mengunggah...";
+    uploadStatus.className = "";
 
     try {
-        await api("/api/admin/documents/delete", {
-            method: "DELETE",
-            headers: {
-                "Content-Type": "application/json"
-            },
-            body: JSON.stringify({
-                category,
-                filename
-            })
+        const res = await fetch(`${ADMIN_BASE}/documents/upload`, {
+            method: "POST",
+            headers: ADMIN_ROLE_HEADER,
+            body: formData
         });
+        const data = await res.json();
 
-        await loadDocuments();
-    } catch (error) {
-        alert(error.message);
+        if (res.status === 409 && data.exists) {
+            uploadStatus.textContent = data.message + " Centang \"Ganti jika sudah ada\" untuk menimpa.";
+            uploadStatus.className = "error";
+            return;
+        }
+
+        if (!res.ok) {
+            uploadStatus.textContent = data.error || "Upload gagal";
+            uploadStatus.className = "error";
+            return;
+        }
+
+        if (data.warning) {
+            uploadStatus.textContent = data.message || data.warning;
+            uploadStatus.className = "error";
+            toast("Dokumen diunggah tetapi ditandai untuk review", "error");
+        } else {
+            uploadStatus.textContent = "Berhasil diunggah";
+            uploadStatus.className = "success";
+            toast(data.message || "Dokumen berhasil diunggah", "success");
+        }
+
+        setTimeout(() => {
+            closeUploadModal();
+            loadDocuments();
+        }, 900);
+
+    } catch (e) {
+        uploadStatus.textContent = "Gagal terhubung ke server";
+        uploadStatus.className = "error";
+    } finally {
+        submitBtn.disabled = false;
+    }
+});
+
+// ---------- Confirm modal ----------
+
+const confirmModal = document.getElementById("confirm-modal");
+let confirmCallback = null;
+
+function confirmAction(title, message, onConfirm) {
+    document.getElementById("confirm-title").textContent = title;
+    document.getElementById("confirm-message").textContent = message;
+    confirmCallback = onConfirm;
+    confirmModal.classList.add("open");
+}
+
+document.getElementById("confirm-cancel-btn").addEventListener("click", () => {
+    confirmModal.classList.remove("open");
+    confirmCallback = null;
+});
+document.getElementById("confirm-ok-btn").addEventListener("click", () => {
+    confirmModal.classList.remove("open");
+    if (confirmCallback) confirmCallback();
+    confirmCallback = null;
+});
+confirmModal.addEventListener("click", (e) => {
+    if (e.target === confirmModal) {
+        confirmModal.classList.remove("open");
+        confirmCallback = null;
+    }
+});
+
+// ---------- Top FAQ ----------
+
+async function loadFaq() {
+    const days = document.getElementById("faq-days").value;
+    const limit = document.getElementById("faq-limit").value;
+    const body = document.getElementById("faq-body");
+    body.innerHTML = `<tr><td colspan="4" class="empty-state">Memuat...</td></tr>`;
+
+    try {
+        const data = await apiGet(`${API_BASE}/logs/top-faq?days=${days}&limit=${limit}`, ADMIN_ROLE_HEADER);
+        body.innerHTML = "";
+
+        if (!data.length) {
+            body.innerHTML = `<tr><td colspan="4" class="empty-state">Belum ada data</td></tr>`;
+            return;
+        }
+
+        data.forEach((row, i) => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${i + 1}</td>
+                <td>${row.query}</td>
+                <td>${fmtNumber(row.total_queries)}</td>
+                <td>${fmtDateTime(row.last_asked)}</td>
+            `;
+            body.appendChild(tr);
+        });
+    } catch (e) {
+        console.error(e);
+        body.innerHTML = `<tr><td colspan="4" class="empty-state">Gagal memuat data</td></tr>`;
     }
 }
 
-filterCategory.addEventListener("change", loadDocuments);
-refreshButton.addEventListener("click", loadDocuments);
+document.getElementById("faq-days").addEventListener("change", loadFaq);
+document.getElementById("faq-limit").addEventListener("change", loadFaq);
 
-function escapeHtml(value) {
-    return String(value)
-        .replaceAll("&", "&amp;")
-        .replaceAll("<", "&lt;")
-        .replaceAll(">", "&gt;")
-        .replaceAll('"', "&quot;")
-        .replaceAll("'", "&#039;");
-}
+// ---------- Problematic Answers ----------
 
-function escapeAttr(value) {
-    return escapeHtml(value);
-}
+async function loadProblematicAnswers() {
+    const days = document.getElementById("fb-days").value;
+    const minDownvotes = document.getElementById("fb-min-downvotes").value;
+    const list = document.getElementById("feedback-list");
+    list.innerHTML = `<div class="empty-state">Memuat...</div>`;
 
-function flagBadges(flags) {
-    if (!flags || !flags.length) return "";
+    try {
+        const data = await apiGet(
+            `${API_BASE}/analytics/problematic-answers?days=${days}&min_downvotes=${minDownvotes}&limit=20`,
+            ADMIN_ROLE_HEADER
+        );
+        list.innerHTML = "";
 
-    const labels = {
-        duplicate: "Duplikat",
-        confidential: "Rahasia",
-        stale: "Usang"
-    };
+        if (!data.length) {
+            list.innerHTML = `<div class="empty-state">Tidak ada jawaban bermasalah</div>`;
+            return;
+        }
 
-    return flags.map(f => {
-        const title = f.type === "duplicate" && f.duplicate_of
-            ? `Duplikat dari: ${f.duplicate_of}`
-            : (f.detail || "");
-        return `<span class="flag-badge flag-${f.type}" title="${escapeAttr(title)}">${labels[f.type] || f.type}</span>`;
-    }).join(" ");
-}
-
-function isBlocked(flags) {
-    return (flags || []).some(f => f.type === "duplicate" || f.type === "confidential");
-}
-
-function versionBadge(doc) {
-    if (doc.version_status === "superseded") {
-        return `<span class="flag-badge flag-superseded" title="Digantikan oleh: ${escapeAttr(doc.superseded_by || '-')}">Superseded</span>`;
+        data.forEach(item => {
+            const card = document.createElement("div");
+            card.className = "qa-card";
+            const reasons = (item.reasons || []).filter(Boolean);
+            card.innerHTML = `
+                <div class="qa-question">${item.question}</div>
+                <div class="qa-answer">${item.answer || "-"}</div>
+                <div class="qa-meta">
+                    <span>👍 ${item.upvotes}</span>
+                    <span>👎 ${item.downvotes}</span>
+                    <span>${fmtDateTime(item.last_feedback_at)}</span>
+                </div>
+                ${reasons.length ? `<div class="qa-reasons">${reasons.map(r => `<div class="qa-reason">${r}</div>`).join("")}</div>` : ""}
+            `;
+            list.appendChild(card);
+        });
+    } catch (e) {
+        console.error(e);
+        list.innerHTML = `<div class="empty-state">Gagal memuat data</div>`;
     }
-    return "";
 }
 
-loadDocuments();
+document.getElementById("fb-days").addEventListener("change", loadProblematicAnswers);
+document.getElementById("fb-min-downvotes").addEventListener("change", loadProblematicAnswers);
 
-setInterval(loadDocuments, 60000);
+// ---------- Flagged Documents ----------
+
+async function loadFlaggedDocuments() {
+    const days = document.getElementById("flags-days").value;
+    const body = document.getElementById("flags-body");
+    body.innerHTML = `<tr><td colspan="5" class="empty-state">Memuat...</td></tr>`;
+
+    try {
+        const data = await apiGet(`${API_BASE}/analytics/flagged-documents?days=${days}&limit=20`, ADMIN_ROLE_HEADER);
+        body.innerHTML = "";
+
+        if (!data.length) {
+            body.innerHTML = `<tr><td colspan="5" class="empty-state">Tidak ada dokumen ditandai</td></tr>`;
+            return;
+        }
+
+        data.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${row.source}</td>
+                <td>${row.chunk_index}</td>
+                <td>${fmtNumber(row.flagged_count)}</td>
+                <td>${fmtNumber(row.total_referenced_count)}</td>
+                <td>${row.flag_ratio}</td>
+            `;
+            body.appendChild(tr);
+        });
+    } catch (e) {
+        console.error(e);
+        body.innerHTML = `<tr><td colspan="5" class="empty-state">Gagal memuat data</td></tr>`;
+    }
+}
+
+document.getElementById("flags-days").addEventListener("change", loadFlaggedDocuments);
+
+// ---------- Cost & Budget ----------
+
+function setProgress(fillEl, statusEl, valueEl, cost, budget, status) {
+    const pct = budget > 0 ? Math.min((cost / budget) * 100, 100) : 100;
+    fillEl.style.width = `${pct}%`;
+    fillEl.classList.remove("warn", "exceeded");
+    if (status === "EXCEEDED") fillEl.classList.add("exceeded");
+    else if (status === "WARNING") fillEl.classList.add("warn");
+
+    valueEl.textContent = `${fmtCurrency(cost)} / ${fmtCurrency(budget)}`;
+    statusEl.textContent = `${status} · ${pct.toFixed(1)}%`;
+}
+
+async function loadCost() {
+    try {
+        const budget = await apiGet(`${API_BASE}/cost/budget`, ADMIN_ROLE_HEADER);
+
+        setProgress(
+            document.getElementById("cost-daily-fill"),
+            document.getElementById("cost-daily-status"),
+            document.getElementById("cost-daily-value"),
+            budget.daily.cost, budget.daily.budget, budget.daily.status
+        );
+        setProgress(
+            document.getElementById("cost-weekly-fill"),
+            document.getElementById("cost-weekly-status"),
+            document.getElementById("cost-weekly-value"),
+            budget.weekly.cost, budget.weekly.budget, budget.weekly.status
+        );
+
+        const weekly = await apiGet(`${API_BASE}/cost/weekly`, ADMIN_ROLE_HEADER);
+        const body = document.getElementById("weekly-cost-body");
+        body.innerHTML = "";
+
+        const rows = weekly.data || [];
+        if (!rows.length) {
+            body.innerHTML = `<tr><td colspan="5" class="empty-state">Belum ada data</td></tr>`;
+            return;
+        }
+
+        rows.forEach(row => {
+            const tr = document.createElement("tr");
+            tr.innerHTML = `
+                <td>${new Date(row.report_date).toLocaleDateString("id-ID", { day: "2-digit", month: "short", year: "numeric" })}</td>
+                <td>${fmtCurrency(row.total_cost)}</td>
+                <td>${fmtNumber(row.total_tokens)}</td>
+                <td>${fmtNumber(row.chat_requests)}</td>
+                <td>${fmtNumber(row.index_runs)}</td>
+            `;
+            body.appendChild(tr);
+        });
+    } catch (e) {
+        console.error(e);
+        toast("Gagal memuat data biaya", "error");
+    }
+}
+
+// ---------- Export logs (topbar action, shown on overview) ----------
+
+function renderExportButton() {
+    const actions = document.getElementById("topbar-actions");
+    actions.innerHTML = "";
+    const btn = document.createElement("button");
+    btn.className = "btn-secondary";
+    btn.textContent = "Ekspor Log CSV";
+    btn.addEventListener("click", exportLogs);
+    actions.appendChild(btn);
+}
+
+async function exportLogs() {
+    try {
+        const res = await fetch(`${API_BASE}/logs/export`, { headers: ADMIN_ROLE_HEADER });
+        if (!res.ok) {
+            const data = await res.json().catch(() => ({}));
+            throw new Error(data.error || "Gagal mengekspor log");
+        }
+        const blob = await res.blob();
+        const a = document.createElement("a");
+        a.href = URL.createObjectURL(blob);
+        a.download = "interaction_logs.csv";
+        a.click();
+        URL.revokeObjectURL(a.href);
+    } catch (e) {
+        toast(e.message, "error");
+    }
+}
+
+// ---------- Init ----------
+
+renderExportButton();
+loadOverview();
