@@ -1,9 +1,6 @@
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 from utils.supabase_admin import supabase
-
-IDLE_TIMEOUT = timedelta(minutes=30)
-ABSOLUTE_TIMEOUT = timedelta(hours=24)
 
 class SupabaseSessionStore:
     def create(self, user_id=None, title=None):
@@ -16,8 +13,6 @@ class SupabaseSessionStore:
             "title": title,
             "created_at": now.isoformat(),
             "last_activity_at": now.isoformat(),
-            "expires_at": (now + IDLE_TIMEOUT).isoformat(),
-            "absolute_expires_at": (now + ABSOLUTE_TIMEOUT).isoformat(),
         }
 
         supabase.table("sessions").insert(row).execute()
@@ -30,13 +25,6 @@ class SupabaseSessionStore:
             return None
 
         session = result.data[0]
-        now = datetime.now(timezone.utc)
-
-        expires_at = datetime.fromisoformat(session["expires_at"])
-        absolute_expires_at = datetime.fromisoformat(session["absolute_expires_at"])
-
-        if now >= expires_at or now >= absolute_expires_at:
-            return None
 
         return session
 
@@ -47,16 +35,12 @@ class SupabaseSessionStore:
             return None
 
         now = datetime.now(timezone.utc)
-        absolute_expires_at = datetime.fromisoformat(session["absolute_expires_at"])
-        new_expires_at = min(now + IDLE_TIMEOUT, absolute_expires_at)
 
         supabase.table("sessions").update({
-            "last_activity_at": now.isoformat(),
-            "expires_at": new_expires_at.isoformat()
+            "last_activity_at": now.isoformat()
         }).eq("session_id", session_id).execute()
 
         session["last_activity_at"] = now.isoformat()
-        session["expires_at"] = new_expires_at.isoformat()
         return session
 
     def set_title(self, session_id, title):
@@ -106,16 +90,7 @@ class SupabaseSessionStore:
         return result.data or []
 
     def cleanup(self):
-        now = datetime.now(timezone.utc).isoformat()
-
-        result = (
-            supabase.table("sessions")
-            .delete()
-            .or_(f"expires_at.lt.{now},absolute_expires_at.lt.{now}")
-            .execute()
-        )
-
-        return len(result.data or [])
+        return 0
 
     def delete(self, session_id):
         result = (

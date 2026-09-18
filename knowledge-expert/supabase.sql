@@ -781,9 +781,7 @@ create table if not exists public.sessions (
     user_id text,
     title text,
     created_at timestamptz not null default now(),
-    last_activity_at timestamptz not null default now(),
-    expires_at timestamptz not null,
-    absolute_expires_at timestamptz not null
+    last_activity_at timestamptz not null default now()
 );
 
 create index if not exists idx_sessions_last_activity on public.sessions(last_activity_at);
