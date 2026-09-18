@@ -101,3 +101,35 @@ class SupabaseSessionStore:
         )
 
         return len(result.data or []) > 0
+
+    def search_messages(self, query, user_id=None, limit=20):
+        """Cari session yang mengandung pesan dengan teks tertentu (case-insensitive)."""
+        q = (
+            supabase.table("session_messages")
+            .select("session_id, role, content, created_at, sessions!inner(title, last_activity_at, user_id)")
+            .ilike("content", f"%{query}%")
+            .order("created_at", desc=True)
+            .limit(limit)
+        )
+
+        if user_id:
+            q = q.eq("sessions.user_id", user_id)
+
+        result = q.execute()
+
+        seen = set()
+        results = []
+        for row in result.data or []:
+            sid = row["session_id"]
+            if sid in seen:
+                continue
+            seen.add(sid)
+            results.append({
+                "session_id": sid,
+                "title": row["sessions"]["title"],
+                "snippet": row["content"][:200],
+                "matched_role": row["role"],
+                "last_activity_at": row["sessions"]["last_activity_at"],
+            })
+
+        return results

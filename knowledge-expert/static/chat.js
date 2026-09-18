@@ -4,12 +4,14 @@ const MAX_LEN = 1000;
 let sessionId = localStorage.getItem("active_session_id") || null;
 let knownSessionIds = JSON.parse(localStorage.getItem("session_ids") || "[]");
 let isStreaming = false;
+let searchDebounce = null;
 
 const messagesEl = document.getElementById("messages");
 const questionEl = document.getElementById("question");
 const sendBtn = document.getElementById("send-btn");
 const charCountEl = document.getElementById("char-count");
 const sessionListEl = document.getElementById("session-list");
+const sessionSearchEl = document.getElementById("session-search");
 
 questionEl.addEventListener("input", () => {
     charCountEl.textContent = `${questionEl.value.length} / ${MAX_LEN}`;
@@ -341,6 +343,39 @@ async function sendMessage() {
         sendBtn.disabled = false;
         questionEl.focus();
     }
+}
+
+sessionSearchEl.addEventListener("input", () => {
+    clearTimeout(searchDebounce);
+    const q = sessionSearchEl.value.trim();
+
+    searchDebounce = setTimeout(async () => {
+        if (!q) {
+            loadSessionList();
+            return;
+        }
+        try {
+            const res = await fetch(`${API_BASE}/sessions/search?q=${encodeURIComponent(q)}`);
+            const results = await res.json();
+            renderSearchResults(results);
+        } catch (e) { console.error("search failed", e); }
+    }, 300);
+});
+
+function renderSearchResults(results) {
+    sessionListEl.innerHTML = "";
+    if (!results.length) {
+        sessionListEl.innerHTML = `<div class="empty-state">Tidak ditemukan</div>`;
+        return;
+    }
+    results.forEach(r => {
+        const item = document.createElement("div");
+        item.className = "session-item";
+        item.dataset.id = r.session_id;
+        item.innerHTML = `<span>${r.title || "Percakapan"}<br><small>${r.snippet}</small></span>`;
+        item.querySelector("span").addEventListener("click", () => openSession(r.session_id));
+        sessionListEl.appendChild(item);
+    });
 }
 
 // init

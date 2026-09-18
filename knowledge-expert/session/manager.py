@@ -31,3 +31,6 @@ class SessionManager:
 
     def delete_session(self, session_id):
         return self.store.delete(session_id)
+
+    def search_sessions(self, query, user_id=None, limit=20):
+        return self.store.search_messages(query, user_id=user_id, limit=limit)
