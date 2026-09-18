@@ -73,24 +73,65 @@ function renderFeedback(container, requestId) {
         <button class="fb-btn" data-rating="up">👍</button>
         <button class="fb-btn" data-rating="down">👎</button>
     `;
+
+    const reasonWrap = document.createElement("div");
+    reasonWrap.className = "feedback-reason";
+    reasonWrap.innerHTML = `
+        <input type="text" class="reason-input" placeholder="Apa alasan Anda?" maxlength="500">
+        <button class="reason-btn">Kirim</button>
+    `;
+    reasonWrap.style.display = "none";
+
     row.querySelectorAll(".fb-btn").forEach(btn => {
         btn.addEventListener("click", () => {
             row.querySelectorAll(".fb-btn").forEach(b => b.classList.remove("selected"));
             btn.classList.add("selected");
-            sendFeedback(requestId, btn.dataset.rating);
+            reasonWrap.style.display = "flex";
+            reasonWrap.querySelector(".reason-input").focus();
         });
     });
+
+    reasonWrap.querySelector(".reason-btn").addEventListener("click", async () => {
+        const selected = row.querySelector(".fb-btn.selected");
+        const input = reasonWrap.querySelector(".reason-input");
+        if (!selected) return;
+
+        const reason = input.value.trim();
+        const success = await sendFeedback(requestId, selected.dataset.rating, reason);
+
+        if (success) {
+            input.disabled = true;
+            reasonWrap.querySelector(".reason-btn").disabled = true;
+            reasonWrap.querySelector(".reason-btn").textContent = "Terkirim";
+        }
+    });
+
     container.appendChild(row);
+    container.appendChild(reasonWrap);
 }
 
-async function sendFeedback(requestId, rating) {
+async function sendFeedback(requestId, rating, reason) {
     try {
-        await fetch(`${API_BASE}/feedback`, {
+        const res = await fetch(`${API_BASE}/feedback`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ request_id: requestId, rating })
+            body: JSON.stringify({
+                request_id: requestId,
+                rating,
+                reason: reason || null
+            })
         });
-    } catch (e) { console.error("feedback failed", e); }
+
+        if (!res.ok) {
+            console.error("feedback failed:", await res.text());
+            return false;
+        }
+
+        return true;
+    } catch (e) {
+        console.error("feedback failed", e);
+        return false;
+    }
 }
 
 function saveSessionId(id) {

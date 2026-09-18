@@ -87,6 +87,16 @@ body{
 .fb-btn:hover{ background:var(--panel-2); color:var(--text); }
 .fb-btn.selected{ background:var(--text); color:var(--bg); border-color:var(--text); }
 
+.feedback-reason{ display:flex; gap:6px; margin-top:6px; width:100%; }
+.reason-input{ flex:1; min-width:0; background:var(--panel); color:var(--text); border:1px solid var(--border);
+    border-radius:8px; padding:7px 10px; font-size:12px; font-family:inherit; outline:none;}
+.reason-input:focus{ border-color:var(--text-dim); }
+.reason-input::placeholder{ color:var(--text-dim); }
+.reason-btn{ background:var(--text); color:var(--bg); border:none; 
+    border-radius:8px; padding:7px 10px; font-size:12px; cursor:pointer; }
+.reason-btn:hover{ opacity:.85; }
+.reason-btn:disabled{ opacity:.4; cursor:not-allowed;}
+
 .typing{ display:flex; gap:4px; padding:14px 16px; }
 .typing span{
     width:6px; height:6px; border-radius:50%; background:var(--text-dim);
