@@ -1,6 +1,6 @@
-# RAG Chatbot API
+# Knowledge Expert (Agent 3)
 
-API Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan menghasilkan jawaban berdasarkan knowledge base yang telah di-index.
+Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan menghasilkan jawaban berdasarkan knowledge base yang telah di-index.
 
 ## Daftar Isi
 
