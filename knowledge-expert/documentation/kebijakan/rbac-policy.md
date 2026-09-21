@@ -72,12 +72,18 @@ Membatasi kategori dokumen yang boleh digunakan sebagai konteks retrieval berdas
 
 | Kategori | Role yang Diizinkan |
 | --- | --- |
+| General | Semua role |
 | SOP | Semua role |
-| Datasheet | Sales, Solution Architect |
 | Pricelist | Sales |
-| Technical Guide | Solution Architect |
+| Case Study | Semua role |
 | Meeting Notes | Sales |
 | Training Material | Semua role |
+| Solution Architecture | Solution Architect |
+| Proposal Template | Semua role |
+| Technical Guide | Solution Architect |
+| Competitive | Semua role |
+| Datasheet | Sales, Solution Architect |
+| SoW | Semua role |
 
 ### 4.2 Perilaku Default (Tanpa Header Role)
 

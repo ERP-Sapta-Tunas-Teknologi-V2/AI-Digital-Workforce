@@ -3,7 +3,7 @@ const ADMIN_BASE = "/api/admin";
 // TODO: sesuaikan dengan mekanisme auth nyata (mis. ambil dari session/login), lihat utils/permissions.py require_role("Admin")
 const ADMIN_ROLE_HEADER = { "X-User-Role": "Admin" };
 
-const CATEGORIES = ["sop", "datasheet", "pricelist", "guide", "meeting", "training"];
+const CATEGORIES = ["general", "sop", "pricelist", "case", "meeting", "training", "solution", "proposal", "guide", "competitive", "datasheet", "sow"];
 
 // ---------- Utilities ----------
 

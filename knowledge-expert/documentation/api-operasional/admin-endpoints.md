@@ -20,7 +20,7 @@ Form fields:
 | Field      | Required | Description                                  |
 | ---------- | -------- | --------------------------------------------- |
 | `file`     | ya       | File yang diupload                            |
-| `category` | ya       | Salah satu dari `sop`, `datasheet`, `pricelist` |
+| `category` | ya       | Salah satu dari kategori di [Sync satu category](#sync-satu-category) |
 | `replace`  | tidak    | `true` untuk menimpa file yang sudah ada      |
 
 Jika file dengan nama yang sama sudah ada di kategori tersebut dan `replace` tidak dikirim (atau `false`), response:
@@ -266,9 +266,7 @@ Kirim body kosong:
 Proses akan melakukan sync terhadap:
 
 ```text
-documents/sop/
-documents/datasheet/
-documents/pricelist/
+documents/
 ```
 
 Response:
@@ -292,9 +290,18 @@ Contoh:
 Category yang diperbolehkan:
 
 ```text
+general
 sop
-datasheet
 pricelist
+case
+meeting
+training
+solution
+proposal
+guide
+competitive
+datasheet
+sow
 ```
 
 Response:

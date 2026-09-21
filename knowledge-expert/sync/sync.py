@@ -9,7 +9,7 @@ from utils.doc_screening import screen_document, extract_text_sample
 
 SOURCE_DIR = Path("documents")
 SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx"}
-ALLOWED_CATEGORIES = {"sop", "datasheet", "pricelist", "guide", "meeting", "training"}
+ALLOWED_CATEGORIES = {"general", "sop", "pricelist", "case", "meeting", "training", "solution", "proposal", "guide", "competitive", "datasheet", "sow"}
 
 def sync_documents(category=None):
     categories = [category] if category else sorted(ALLOWED_CATEGORIES)

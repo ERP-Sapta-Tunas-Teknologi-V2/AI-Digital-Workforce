@@ -32,9 +32,18 @@ knowledge-expert/
 Category yang digunakan:
 
 ```text
+general
 sop
-datasheet
 pricelist
+case
+meeting
+training
+solution
+proposal
+guide
+competitive
+datasheet
+sow
 ```
 
 Jika file dengan nama dan category yang sama sudah ada di MinIO, dashboard meminta konfirmasi sebelum melakukan replace.

@@ -4,12 +4,18 @@ from flask import request, jsonify
 ALLOWED_ROLES = {"Admin"}
 
 CATEGORY_ACCESS = {
-    "sop": None,  # None = semua role
-    "datasheet": {"Sales", "Solution Architect"},
-    "pricelist": {"Sales"},
-    "guide": {"Solution Architect"},
-    "meeting": {"Sales"},
-    "training": None,
+    "general": None,  # None = semua role
+    "sop": None, 
+    "pricelist": {"Sales"}, 
+    "case": None, 
+    "meeting": {"Sales"}, 
+    "training": None, 
+    "solution": {"Solution Architect"}, 
+    "proposal": None, 
+    "guide": {"Solution Architect"}, 
+    "competitive": None, 
+    "datasheet": {"Sales", "Solution Architect"}, 
+    "sow": None
 }
 
 def require_role(*roles):

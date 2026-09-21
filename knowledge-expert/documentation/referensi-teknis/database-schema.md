@@ -118,7 +118,7 @@ Melacak status ingest setiap dokumen, termasuk state versioning (khusus kategori
 | --------------------- | -------------- | -------- | ----------- | ---------------------------------------------------------------------------- |
 | `document_id`         | text           | No       | -           | Primary key. Format `{category}:{filename_tanpa_ekstensi}`.                  |
 | `source`              | text           | No       | -           | Nama file asal di MinIO.                                                     |
-| `category`            | text           | No       | -           | Kategori dokumen (`sop`, `datasheet`, `pricelist`, dst).                     |
+| `category`            | text           | No       | -           | Kategori dokumen                     |
 | `status`              | text           | No       | `'pending'` | `not_ingested` / `processing` / `success` / `failed`.                       |
 | `detail`              | text           | Yes      | -           | Pesan tambahan, mis. alasan gagal.                                           |
 | `last_ingested_at`    | timestamptz    | Yes      | -           | Waktu terakhir proses ingest selesai (`success` atau `failed`).              |
