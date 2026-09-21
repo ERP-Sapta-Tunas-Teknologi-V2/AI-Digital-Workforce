@@ -89,6 +89,16 @@ class SupabaseSessionStore:
 
         return result.data or []
 
+    def list_all_sessions(self):
+        """Ambil semua session terbaru, tanpa bergantung pada localStorage client."""
+        result = (
+            supabase.table("sessions")
+            .select("session_id, title, created_at, last_activity_at")
+            .order("last_activity_at", desc=True)
+            .execute()
+        )
+        return result.data or []
+
     def cleanup(self):
         return 0
 
