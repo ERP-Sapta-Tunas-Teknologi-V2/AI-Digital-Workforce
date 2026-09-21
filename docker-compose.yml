@@ -1,0 +1,74 @@
+services:
+  workforce-redis:
+    image: redis:7-alpine
+    container_name: workforce-redis
+    restart: unless-stopped
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+    networks:
+      - shared-gateway
+
+  workforce-minio:
+    image: minio/minio:latest
+    container_name: workforce-minio
+    restart: unless-stopped
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: ${MINIO_ACCESS_KEY:-minioadmin}
+      MINIO_ROOT_PASSWORD: ${MINIO_SECRET_KEY:-minioadminpassword}
+    volumes:
+      - minio_data:/data
+    ports:
+      - "9001:9001" # Web Console MinIO jika ingin diakses di browser
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    networks:
+      - shared-gateway
+
+  workforce-app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: workforce-app
+    restart: unless-stopped
+    expose:
+      - "5000"
+    env_file:
+      - .env
+    environment:
+      - PORT=5000
+      - PYTHONUNBUFFERED=1
+      - REDIS_HOST=workforce-redis
+      - REDIS_PORT=6379
+      - REDIS_URL=redis://workforce-redis:6379/0
+      - MINIO_ENDPOINT=workforce-minio:9000
+      - MINIO_SECURE=false
+      - OLLAMA_BASE_URL=${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+    volumes:
+      - ./log:/app/log
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    depends_on:
+      workforce-redis:
+        condition: service_healthy
+      workforce-minio:
+        condition: service_healthy
+    networks:
+      - shared-gateway
+
+volumes:
+  redis_data:
+  minio_data:
+
+networks:
+  shared-gateway:
+    external: true
