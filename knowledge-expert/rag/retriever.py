@@ -6,7 +6,6 @@ from rag.embeddings import embeddings, count_embedding_tokens
 from rag.reranker import rerank
 from utils.supabase_client import supabase
 from utils.anonymizer import anonymize_query
-from config import EMBEDDING_MODEL
 
 # RERANK_THRESHOLD = 0.0
 
@@ -62,7 +61,6 @@ def hybrid_retrieve(
     retrieval_question = clean_retrieval_query(expanded_question)
     print("retrieval_question:", retrieval_question)
 
-    embedding_model = EMBEDDING_MODEL
     embedding_tokens = count_embedding_tokens(question)
     query_embedding = embeddings.embed_query(question)
 
@@ -151,4 +149,4 @@ def hybrid_retrieve(
     with open("log/log_time.txt", "a", encoding="utf-8") as f:
         f.write(log)
 
-    return documents, context, embedding_tokens, embedding_model
+    return documents, context

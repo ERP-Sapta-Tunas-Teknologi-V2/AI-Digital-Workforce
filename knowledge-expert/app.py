@@ -11,7 +11,7 @@ from routes.analytics import analytics_bp
 from routes.admin import admin_bp
 from config import OLLAMA_BASE_URL
 
-ALLOWED_ORIGINS = ["https://saptatunas.com"]
+ALLOWED_ORIGINS = ["http://localhost:5173"]
 
 REDIS_HOST = "localhost"
 REDIS_PORT = 6379

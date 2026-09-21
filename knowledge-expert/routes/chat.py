@@ -14,7 +14,6 @@ from utils.injection_patterns import INJECTION_PATTERNS
 from utils.permissions import get_allowed_categories
 from session.manager import SessionManager
 from session.contextualizer import contextualize_question
-from config import OLLAMA_LLM
 
 session_manager = SessionManager()
 
@@ -106,10 +105,11 @@ def chat():
         f.write(f"[{request_id}] [LOGGING] total={log_time:.3f}s\n")
 
     try:
-        documents, context, embedding_tokens, embedding_model = hybrid_retrieve(
+        documents, context = hybrid_retrieve(
             contextual_question, request_id, role, allowed_categories=get_allowed_categories(role)
         )
     except Exception as error:
+        print(f"[CHAT] hybrid_retrieve failed: {type(error).__name__}: {error}")
         Thread(
             target=update_interaction_response,
             args=(request_id, "Request gagal diproses.", [], "failed"),
