@@ -267,6 +267,11 @@ def list_sessions():
     sessions = session_manager.list_sessions(session_ids)
     return jsonify(sessions)
 
+@chat_bp.route("/sessions/all", methods=["GET"])
+def list_all_sessions():
+    sessions = session_manager.list_all_sessions()
+    return jsonify(sessions)
+
 @chat_bp.route("/sessions/<session_id>", methods=["GET"])
 def get_session_history(session_id):
     session = session_manager.store.get(session_id)

@@ -26,6 +26,9 @@ class SessionManager:
     def list_sessions(self, session_ids):
         return self.store.list_sessions(session_ids)
 
+    def list_all_sessions(self):
+        return self.store.list_all_sessions()
+
     def cleanup(self):
         return self.store.cleanup()
 

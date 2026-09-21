@@ -157,13 +157,18 @@ function startNewChat() {
 }
 
 async function loadSessionList() {
-    if (!knownSessionIds.length) return;
     try {
-        const res = await fetch(`${API_BASE}/sessions`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_ids: knownSessionIds })
-        });
+        // // session
+        // if (!knownSessionIds.length) return;
+        // const res = await fetch(`${API_BASE}/sessions`, {
+        //     method: "POST",
+        //     headers: { "Content-Type": "application/json" },
+        //     body: JSON.stringify({ session_ids: knownSessionIds })
+        // });
+        
+        // semua
+        const res = await fetch(`${API_BASE}/sessions/all`);
+
         const sessions = await res.json();
         sessionListEl.innerHTML = "";
         sessions.forEach(s => {
