@@ -8,9 +8,9 @@ from utils.minio_client import file_exists, upload_file, list_files, delete_file
 from utils.status_tracker import get_all_statuses, delete_status, get_active_version, supersede_status, reset_stale_processing
 from utils.doc_screening import screen_document, find_duplicate, extract_text_sample
 from utils.supabase_admin import supabase
-from ingestion.indexer import index_document
+from ingestion.indexer import index_document, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
 from ingestion.vectorstore import delete_document as delete_vectors
-from sync.sync import sync_documents, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
+from sync.sync import sync_documents
 
 admin_bp = Blueprint("admin", __name__)
 

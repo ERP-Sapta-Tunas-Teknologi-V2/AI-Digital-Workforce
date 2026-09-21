@@ -3,13 +3,11 @@ os.environ["TORCHDYNAMO_DISABLE"] = "1"
 os.environ["TORCH_COMPILE_DISABLE"] = "1"
 
 from pathlib import Path
-from ingestion.indexer import index_document
+from ingestion.indexer import index_document, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
 from ingestion.vectorstore import get_document_ids, delete_document
 from utils.doc_screening import screen_document, extract_text_sample
 
 SOURCE_DIR = Path("documents")
-SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx"}
-ALLOWED_CATEGORIES = {"general", "sop", "pricelist", "case", "meeting", "training", "solution", "proposal", "guide", "competitive", "datasheet", "sow"}
 
 def sync_documents(category=None):
     categories = [category] if category else sorted(ALLOWED_CATEGORIES)

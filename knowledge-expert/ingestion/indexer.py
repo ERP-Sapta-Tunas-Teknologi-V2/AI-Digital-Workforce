@@ -12,6 +12,12 @@ from utils.minio_client import client, object_key
 from utils.logger import log_ingestion
 import config
 
+SUPPORTED_EXTENSIONS = {".pdf", ".docx", ".xlsx", ".pptx"}
+ALLOWED_CATEGORIES = {
+    "general", "sop", "pricelist", "case", "meeting", "training", 
+    "solution", "proposal", "guide", "competitive", "datasheet", "sow"
+}
+
 chunker = StructureAwareChunker(max_tokens=1000)
 
 def index_document(category: str, filename: str):
@@ -28,7 +34,7 @@ def index_document(category: str, filename: str):
             client.fget_object(config.MINIO_BUCKET, object_key(category, filename), str(local_path))
 
             try:
-                if local_path.suffix.lower() in {".docx", ".pdf"}:
+                if local_path.suffix.lower() in {".docx", ".pdf", ".pptx"}:
                     print(f'Cleaning document...')
                     markdown = preprocessing(local_path)
                     print("Cleaned.")

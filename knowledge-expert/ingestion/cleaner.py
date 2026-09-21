@@ -5,6 +5,7 @@ import tempfile
 import subprocess
 import platform
 from pathlib import Path
+from pptx import Presentation
 from ingestion.image import describe_image
 
 def _get_libreoffice_command():
@@ -92,6 +93,25 @@ def pdf_to_md(pdf_path):
             
     return pages
 
+def pptx_to_md(pptx_path):
+    prs = Presentation(pptx_path)
+    pages = []
+
+    for page_number, slide in enumerate(prs.slides, 1):
+        texts = []
+
+        for shape in slide.shapes:
+            if hasattr(shape, "text") and shape.text.strip():
+                texts.append(shape.text.strip())
+
+        if texts:
+            texts[0] = f"## {texts[0]}"
+
+        markdown = "\n\n".join(texts)
+        pages.append({"page": page_number, "markdown": markdown})
+
+    return pages
+
 def clean_md(markdown):
     markdown = _remove_conversion_artifacts(markdown)
     markdown = markdown.replace("**", "")  # Remove bold
@@ -109,6 +129,9 @@ def preprocessing(path):
 
     elif path.suffix.lower() == ".pdf":
         pages = pdf_to_md(path)
+
+    elif path.suffix.lower() == ".pptx":
+        pages = pptx_to_md(path)
         
     else:
         raise ValueError(f"Unsupported file type: {path.suffix}")
