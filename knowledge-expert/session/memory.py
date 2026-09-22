@@ -25,7 +25,6 @@ class SupabaseSessionStore:
             return None
 
         session = result.data[0]
-
         return session
 
     def touch(self, session_id):
@@ -74,19 +73,15 @@ class SupabaseSessionStore:
 
         return list(reversed(result.data or []))
 
-    def list_sessions(self, session_ids):
-        """Ambil daftar session (untuk sidebar) berdasarkan list session_id dari localStorage client."""
-        if not session_ids:
-            return []
-
+    def list_sessions(self, user_id):
+        """Ambil daftar session (untuk sidebar) berdasarkan user_id."""
         result = (
             supabase.table("sessions")
             .select("session_id, title, created_at, last_activity_at")
-            .in_("session_id", session_ids)
+            .eq("user_id", user_id)
             .order("last_activity_at", desc=True)
             .execute()
         )
-
         return result.data or []
 
     def list_all_sessions(self):
@@ -109,10 +104,9 @@ class SupabaseSessionStore:
             .eq("session_id", session_id)
             .execute()
         )
-
         return len(result.data or []) > 0
 
-    def search_messages(self, query, user_id=None, limit=20):
+    def search_messages(self, query, user_id=None, limit=100):
         """Cari session yang mengandung pesan dengan teks tertentu (case-insensitive)."""
         q = (
             supabase.table("session_messages")

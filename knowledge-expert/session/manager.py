@@ -23,8 +23,8 @@ class SessionManager:
     def set_title(self, session_id, title):
         return self.store.set_title(session_id, title)
 
-    def list_sessions(self, session_ids):
-        return self.store.list_sessions(session_ids)
+    def list_sessions(self, user_id):
+        return self.store.list_sessions(user_id)
 
     def list_all_sessions(self):
         return self.store.list_all_sessions()
@@ -35,5 +35,5 @@ class SessionManager:
     def delete_session(self, session_id):
         return self.store.delete(session_id)
 
-    def search_sessions(self, query, user_id=None, limit=20):
+    def search_sessions(self, query, user_id=None, limit=100):
         return self.store.search_messages(query, user_id=user_id, limit=limit)
