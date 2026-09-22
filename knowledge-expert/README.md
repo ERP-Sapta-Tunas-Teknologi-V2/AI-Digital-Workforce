@@ -142,13 +142,15 @@ Model yang digunakan:
 ```text
 qwen2.5
 bge-m3
+minicpm-v4.5:8b
 ```
 
-Pull model:
+Instal model:
 
 ```bash
 ollama pull qwen2.5
 ollama pull bge-m3
+ollama pull minicpm-v4.5:8b
 ```
 
 Verifikasi:
@@ -540,6 +542,9 @@ Pastikan Ollama sudah berjalan (buka aplikasi Ollama atau jalankan `ollama serve
 
 ```bash
 cd knowledge-expert
+```
+
+```bash
 flask run
 ```
 
@@ -592,6 +597,7 @@ libreoffice --version
 curl -fsSL https://ollama.com/install.sh | sh
 ollama pull qwen2.5
 ollama pull bge-m3
+ollama pull minicpm-v4.5:8b
 ollama list
 ```
 

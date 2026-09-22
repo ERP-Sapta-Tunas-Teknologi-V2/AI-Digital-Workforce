@@ -67,6 +67,7 @@ def chat():
 
     question = data.get("question")
     session_id = data.get("session_id")
+    user_id = data.get("user_id")
 
     error = validate_query(question)
     if error:
@@ -74,14 +75,14 @@ def chat():
 
     question = " ".join(question.split())
 
-    session, is_new = session_manager.get_or_create(session_id)
+    session, is_new = session_manager.get_or_create(session_id, user_id)
     session_id = session["session_id"]
 
     if is_new:
         title = question[:40] + ("..." if len(question) > 40 else "")
         session_manager.set_title(session_id, title)
 
-    history = session_manager.get_history(session_id, limit=10)
+    history = session_manager.get_history(session_id)
 
     safe_query = anonymize_query(question)
     anon_id = uuid.uuid4()
@@ -259,12 +260,9 @@ def feedback():
 @chat_bp.route("/sessions", methods=["POST"])
 def list_sessions():
     data = request.get_json(silent=True) or {}
-    session_ids = data.get("session_ids")
+    user_id = data.get("user_id")
 
-    if not isinstance(session_ids, list):
-        return jsonify({"error": "session_ids must be an array"}), 400
-
-    sessions = session_manager.list_sessions(session_ids)
+    sessions = session_manager.list_sessions(user_id)
     return jsonify(sessions)
 
 @chat_bp.route("/sessions/all", methods=["GET"])
@@ -279,7 +277,7 @@ def get_session_history(session_id):
     if not session:
         return jsonify({"error": "session not found or expired"}), 404
 
-    messages = session_manager.store.get_messages(session_id, limit=100)
+    messages = session_manager.store.get_messages(session_id)
 
     return jsonify({
         "session_id": session_id,
@@ -300,17 +298,27 @@ def delete_session(session_id):
     except Exception:
         return jsonify({"error": "failed to delete session"}), 500
 
-@chat_bp.route("/sessions/search", methods=["GET"])
+@chat_bp.route("/sessions/search", methods=["POST"])
 def search_sessions():
-    query = request.args.get("q", "").strip()
+    data = request.get_json(silent=True) or {}
+    query = data.get("query")
 
-    if not query:
-        return jsonify({"error": "q is required"}), 400
+    if data.get("user_id"):
+        user_id = data.get("user_id")
+    else:
+        user_id = None
+
+    if not query or not isinstance(query, str):
+        return jsonify({"error": "query is required"}), 400
 
     if len(query) > 200:
-        return jsonify({"error": "q must not exceed 200 characters"}), 400
+        return jsonify({"error": "query must not exceed 200 characters"}), 400
 
-    results = session_manager.search_sessions(query, limit=20)
+    if data.get("user_id"):
+        results = session_manager.search_sessions(query, user_id)
+    else:
+        results = session_manager.search_sessions(query)
+
     return jsonify(results)
 
 @chat_bp.route("/rate-limit-test", methods=["GET"])
