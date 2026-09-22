@@ -298,17 +298,27 @@ def delete_session(session_id):
     except Exception:
         return jsonify({"error": "failed to delete session"}), 500
 
-@chat_bp.route("/sessions/search", methods=["GET"])
+@chat_bp.route("/sessions/search", methods=["POST"])
 def search_sessions():
-    query = request.args.get("q", "").strip()
+    data = request.get_json(silent=True) or {}
+    query = data.get("query")
 
-    if not query:
-        return jsonify({"error": "q is required"}), 400
+    if data.get("user_id"):
+        user_id = data.get("user_id")
+    else:
+        user_id = None
+
+    if not query or not isinstance(query, str):
+        return jsonify({"error": "query is required"}), 400
 
     if len(query) > 200:
-        return jsonify({"error": "q must not exceed 200 characters"}), 400
+        return jsonify({"error": "query must not exceed 200 characters"}), 400
 
-    results = session_manager.search_sessions(query)
+    if data.get("user_id"):
+        results = session_manager.search_sessions(query, user_id)
+    else:
+        results = session_manager.search_sessions(query)
+
     return jsonify(results)
 
 @chat_bp.route("/rate-limit-test", methods=["GET"])

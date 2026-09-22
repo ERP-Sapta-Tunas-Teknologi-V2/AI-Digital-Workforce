@@ -352,15 +352,21 @@ async function sendMessage() {
 
 sessionSearchEl.addEventListener("input", () => {
     clearTimeout(searchDebounce);
-    const q = sessionSearchEl.value.trim();
+    const query = sessionSearchEl.value.trim();
 
     searchDebounce = setTimeout(async () => {
-        if (!q) {
+        if (!query) {
             loadSessionList();
             return;
         }
         try {
-            const res = await fetch(`${API_BASE}/sessions/search?q=${encodeURIComponent(q)}`);
+            const res = await fetch(`${API_BASE}/sessions/search`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                    query: query
+                })
+            });
             const results = await res.json();
             renderSearchResults(results);
         } catch (e) { console.error("search failed", e); }
