@@ -208,8 +208,8 @@ Menyimpan metadata session percakapan chatbot, menggantikan in-memory store agar
 | `title`                 | text        | Yes      | -          | Judul percakapan, diambil otomatis dari potongan pertanyaan pertama user. |
 | `created_at`            | timestamptz | No       | `now()`    | Waktu session dibuat.                                                 |
 | `last_activity_at`      | timestamptz | No       | `now()`    | Waktu aktivitas terakhir, diperbarui setiap request valid.            |
-| `expires_at`            | timestamptz | No       | -          | Batas idle timeout (30 menit sejak `last_activity_at`).               |
-| `absolute_expires_at`   | timestamptz | No       | -          | Batas absolute timeout (24 jam sejak `created_at`).                   |
+| `expires_at`            | timestamptz | -        | -          | **Belum diimplementasi** — kolom ini belum ada di `supabase.sql`. Lihat catatan status pada [`session.md`](../kebijakan/session.md#status-implementasi). |
+| `absolute_expires_at`   | timestamptz | -        | -          | **Belum diimplementasi** — sama seperti di atas.  
 
 **Index:**
 
@@ -219,7 +219,7 @@ Menyimpan metadata session percakapan chatbot, menggantikan in-memory store agar
 
 **Access control:** RLS aktif, hanya `service_role` (policy `Allow service_role all on sessions`, akses penuh). Tidak ada validasi ownership berbasis `user_id` pada endpoint saat ini — siapa pun yang mengetahui `session_id` dapat mengambil atau menghapus session tersebut (lihat [Batasan & Risiko](../kebijakan/session.md#10-security--privacy)).
 
-**Retensi:** mengikuti idle timeout 30 menit / absolute timeout 24 jam, dihapus melalui `SupabaseSessionStore.cleanup()`.
+**Retensi:** target desain mengikuti idle timeout 30 menit / absolute timeout 24 jam; `SupabaseSessionStore.cleanup()` saat ini belum diimplementasikan (stub, selalu return 0).
 
 ---
 

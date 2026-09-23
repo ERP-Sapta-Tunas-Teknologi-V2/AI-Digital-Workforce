@@ -1,5 +1,14 @@
 # Session Management
 
+## ⚠️ Status Implementasi
+
+Kolom `expires_at` dan `absolute_expires_at` **belum ada** pada tabel `sessions` (lihat `supabase.sql`).
+`SupabaseSessionStore.touch()` saat ini hanya memperbarui `last_activity_at`, tanpa menghitung ulang expiry.
+`SupabaseSessionStore.cleanup()` saat ini adalah stub (`return 0`) — belum melakukan penghapusan session expired.
+Idle timeout dan absolute timeout pada dokumen ini merupakan **target desain**, bukan perilaku aktual saat ini.
+
+Referensi: [retention-policy.md](retention-policy.md#36-session-deletion) dan [database-schema.md](../referensi-teknis/database-schema.md#sessions)
+
 ## 1. Objective
 
 Mendefinisikan lifecycle, struktur, penyimpanan, dan penggunaan session pada chatbot untuk mendukung multi-turn conversation.
