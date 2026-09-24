@@ -116,8 +116,13 @@ def clean_md(markdown):
     markdown = _remove_conversion_artifacts(markdown)
     markdown = markdown.replace("**", "")  # Remove bold
     markdown = re.sub(r"^# (?!#)", "## ", markdown, flags=re.MULTILINE)  # h1 (#) to h2 (##)
-    markdown = re.sub(re.compile("<.*?>"), " ", markdown)  # Remove html tags
     markdown = markdown.replace("`", "")  # Remove `
+
+    # Remove html tags
+    markdown = re.sub(r"</[^>]+>\s+(?=[a-zA-Z])", lambda m: m.group(0).replace(" ", ""), markdown)
+    markdown = re.sub(r"\s+<[^>]+>", lambda m: m.group(0).lstrip(), markdown)
+    markdown = re.sub(r"<[^>]+>", "", markdown).strip()
+    
     return markdown
 
 def preprocessing(path):

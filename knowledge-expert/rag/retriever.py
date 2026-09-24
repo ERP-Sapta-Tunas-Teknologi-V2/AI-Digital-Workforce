@@ -9,27 +9,13 @@ from utils.anonymizer import anonymize_query
 
 # RERANK_THRESHOLD = 0.0
 
-STT_WORDS = {"stt", "sapta", "tunas", "teknologi"}
-STT_GROUP = "(stt|sapta<->tunas<->teknologi)"
-
-def expand_query(query):
-    lowered = query.lower()
-    raw_tokens = re.findall(r"\w+", lowered)
-
-    non_stt_tokens = [t for t in raw_tokens if t not in STT_WORDS]
-    has_stt = len(non_stt_tokens) < len(raw_tokens)
-
-    parts = non_stt_tokens.copy()
-    if has_stt:
-        parts.append(STT_GROUP)
-
-    return " ".join(parts)
-
 RETRIEVAL_STOPWORDS = {
+    "?",
+
     # Indonesian
     "apa", "apakah", "berapa", "siapa", "dimana", "di mana", "mana",
     "kapan", "mengapa", "kenapa", "bagaimana", "dan", "dari",
-    "tolong", "mohon", "bisa", "dapatkah", "ini", "itu", "yang"
+    "tolong", "mohon", "bisa", "dapatkah", "ini", "itu", "yang",
 
     # English
     "what", "is", "are", "do", "does", "did",
@@ -55,10 +41,7 @@ def hybrid_retrieve(
     start = time.perf_counter()
     embedding_start = time.perf_counter()
 
-    expanded_question = expand_query(question)
-    print("expanded_question:", expanded_question)
-
-    retrieval_question = clean_retrieval_query(expanded_question)
+    retrieval_question = clean_retrieval_query(question)
     print("retrieval_question:", retrieval_question)
 
     embedding_tokens = count_embedding_tokens(question)
@@ -98,6 +81,8 @@ def hybrid_retrieve(
         metadata["retrieval_score"] = row["hybrid_score"]
         metadata["chunk_index"] = row.get("chunk_index")
         metadata["content"] = row.get("content")
+        metadata["rank_fulltext"] = row.get("rank_fulltext")
+        metadata["rank_semantic"] = row.get("rank_semantic")
 
         document = Document(page_content=row["content"], metadata=metadata)
         documents.append(document)
@@ -110,6 +95,8 @@ def hybrid_retrieve(
         for document in all_scored:
             f.write(
                 f"score={document.metadata['rerank_score']:.4f} | "
+                f"fulltext_rank={document.metadata.get('rank_fulltext')} | "
+                f"semantic_rank={document.metadata.get('rank_semantic')} | "
                 f"section={document.metadata.get('section_title')!r} | "
                 f"source={document.metadata.get('source')} | "
                 f"page={document.metadata.get('page')}\n"
