@@ -81,8 +81,6 @@ def hybrid_retrieve(
         metadata["retrieval_score"] = row["hybrid_score"]
         metadata["chunk_index"] = row.get("chunk_index")
         metadata["content"] = row.get("content")
-        metadata["rank_fulltext"] = row.get("rank_fulltext")
-        metadata["rank_semantic"] = row.get("rank_semantic")
 
         document = Document(page_content=row["content"], metadata=metadata)
         documents.append(document)
@@ -95,8 +93,6 @@ def hybrid_retrieve(
         for document in all_scored:
             f.write(
                 f"score={document.metadata['rerank_score']:.4f} | "
-                f"fulltext_rank={document.metadata.get('rank_fulltext')} | "
-                f"semantic_rank={document.metadata.get('rank_semantic')} | "
                 f"section={document.metadata.get('section_title')!r} | "
                 f"source={document.metadata.get('source')} | "
                 f"page={document.metadata.get('page')}\n"
