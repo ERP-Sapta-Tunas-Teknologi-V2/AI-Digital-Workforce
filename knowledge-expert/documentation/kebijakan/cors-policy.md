@@ -9,14 +9,10 @@ Membatasi akses cross-origin API chatbot hanya dari domain frontend perusahaan y
 API hanya mengizinkan origin yang terdapat dalam whitelist:
 
 ```text
-https://saptatunas.com
+http://localhost:5173
 ```
 
-Development dapat menggunakan origin localhost jika diperlukan:
-
-```text
-http://localhost:3000
-```
+> ⚠️ **Catatan implementasi:** `ALLOWED_ORIGINS` pada `app.py` saat ini di-hardcode ke `http://localhost:5173` (origin development/Vite). Pastikan konfigurasi ini diubah sebelum deployment production.
 
 Origin development tidak boleh digunakan pada konfigurasi production.
 

@@ -58,7 +58,9 @@ returns table (
     metadata jsonb,
     chunk_index int,
     embedding vector(1024),
-    hybrid_score float
+    hybrid_score float,
+    rank_fulltext int,
+    rank_semantic int
 )
 language sql
 as $$
@@ -107,9 +109,12 @@ as $$
         full outer join semantic sem on ft.id = sem.id
     )
 
-    select d.id, d.content, d.metadata, d.chunk_index, d.embedding, fused.hybrid_score
+    select d.id, d.content, d.metadata, d.chunk_index, d.embedding, fused.hybrid_score,
+           ft.rank_ix as rank_fulltext, sem.rank_ix as rank_semantic
     from fused
     join public.documents d on d.id = fused.id
+    left join full_text ft on ft.id = fused.id
+    left join semantic sem on sem.id = fused.id
     order by fused.hybrid_score desc
     limit match_count;
 $$;

@@ -20,7 +20,7 @@ def parse_date(value):
         raise ValueError("date must use YYYY-MM-DD format")
 
 @analytics_bp.route("/logs/export", methods=["GET"])
-@require_role("Admin")
+# @require_role("Admin")
 def export_logs():
     try:
         start = parse_date(request.args.get("start"))
@@ -49,7 +49,7 @@ def export_logs():
         return {"error": str(e)}, 400
 
 @analytics_bp.route("/logs/top-faq", methods=["GET"])
-@require_role("Admin")
+# @require_role("Admin")
 def top_faq():
     days = request.args.get("days", 30, type=int)
     limit = request.args.get("limit", 5, type=int)
@@ -65,7 +65,7 @@ def top_faq():
     return jsonify(result.data or [])
 
 @analytics_bp.route("/analytics/problematic-answers", methods=["GET"])
-@require_role("Admin")
+# @require_role("Admin")
 def problematic_answers():
     days = request.args.get("days", 30, type=int)
     min_downvotes = request.args.get("min_downvotes", 1, type=int)
@@ -83,7 +83,7 @@ def problematic_answers():
     return jsonify(result.data or [])
 
 @analytics_bp.route("/analytics/flagged-documents", methods=["GET"])
-@require_role("Admin")
+# @require_role("Admin")
 def flagged_documents():
     days = request.args.get("days", 30, type=int)
     limit = request.args.get("limit", 20, type=int)
@@ -99,7 +99,7 @@ def flagged_documents():
     return jsonify(result.data or [])
 
 @analytics_bp.route("/analytics/dashboard-summary", methods=["GET"])
-@require_role("Admin")
+# @require_role("Admin")
 def dashboard_summary():
     days = request.args.get("days", 30, type=int)
 

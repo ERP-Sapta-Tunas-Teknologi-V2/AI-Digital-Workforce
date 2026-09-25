@@ -433,6 +433,8 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | `/api/chat`             | POST   | Public          |
 | `/api/feedback`         | POST   | Public          |
 | `POST /api/sessions`    | POST   | Public          |
+| `GET /api/sessions/all` | GET    | Public          |
+| `POST /api/sessions/search` | POST | Public       |
 | `GET /api/sessions/<id>`| GET    | Public          |
 | `DELETE /api/sessions/<id>` | DELETE | Public      |
 | `/api/admin/ingest`     | POST   | Admin           |
@@ -802,15 +804,66 @@ Body:
 
 Session yang sudah dihapus atau tidak ditemukan tidak muncul pada hasil (bukan error). Diurutkan dari `last_activity_at` terbaru.
 
+---
+
+### GET /api/sessions/all
+
+Mengambil seluruh session terbaru tanpa bergantung pada localStorage client.
+
+#### Response
+
+`200 OK`
+
+```json
+[
+  { "session_id": "...", "title": "...", "created_at": "...", "last_activity_at": "..." }
+]
+```
+
+> ⚠️ Endpoint ini mengembalikan **seluruh** session tanpa filter `user_id` atau ownership — konsisten dengan batasan pada [`session.md`](../kebijakan/session.md#10-security--privacy) bahwa session tidak divalidasi kepemilikannya.
+
+---
+
+### POST /api/sessions/search
+
+Mencari session berdasarkan isi pesan (case-insensitive, `ILIKE`).
+
+#### Request
+
+```json
+{ "query": "..." }
+```
+
+| Parameter | Type   | Required | Description                          |
+| --------- | ------ | -------- | ------------------------------------- |
+| `query`   | string | Yes      | Teks pencarian, maksimal 200 karakter |
+
+#### Response
+
+`200 OK`
+
+```json
+[
+  {
+    "session_id": "...",
+    "title": "...",
+    "snippet": "...",
+    "matched_role": "user",
+    "last_activity_at": "..."
+  }
+]
+```
+
 #### Error Response
 
 `400 Bad Request`:
 
 ```json
-{ "error": "session_ids must be an array" }
+{ "error": "query is required" }
 ```
-
----
+```json
+{ "error": "query must not exceed 200 characters" }
+```
 
 ### GET /api/sessions/{session_id}
 
@@ -975,6 +1028,8 @@ GET /api/analytics/flagged-documents?days=30&limit=20
 `flag_ratio` dihitung dari jumlah downvote dibagi total kemunculan dokumen tersebut pada jawaban yang memiliki feedback (bukan seluruh jawaban).
 
 Jika tidak ada data, mengembalikan array kosong `[]`.
+
+
 
 ---
 

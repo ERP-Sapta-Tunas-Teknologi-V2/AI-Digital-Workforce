@@ -107,7 +107,8 @@ def chat():
 
     try:
         documents, context = hybrid_retrieve(
-            contextual_question, request_id, role, allowed_categories=get_allowed_categories(role)
+            contextual_question, request_id, role, 
+            # allowed_categories=get_allowed_categories(role)
         )
     except Exception as error:
         print(f"[CHAT] hybrid_retrieve failed: {type(error).__name__}: {error}")

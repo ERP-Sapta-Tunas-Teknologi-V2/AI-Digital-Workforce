@@ -22,29 +22,47 @@ Form fields:
 | `file`     | ya       | File yang diupload                            |
 | `category` | ya       | Salah satu dari kategori di [Sync satu category](#sync-satu-category) |
 | `replace`  | tidak    | `true` untuk menimpa file yang sudah ada      |
+| `supersedes` | tidak  | Khusus kategori **Pricelist**: nama file lama yang digantikan versi baru ini (Skenario B pada [`versioning.md`](../kebijakan/versioning.md)) |
 
-Jika file dengan nama yang sama sudah ada di kategori tersebut dan `replace` tidak dikirim (atau `false`), response:
+Untuk kategori pada `VERSIONED_CATEGORIES` (saat ini: `pricelist`), upload menjalankan deteksi versi otomatis:
 
-```json
-{
-  "exists": true,
-  "message": "File 'example.pdf' already exists in category 'datasheet'. Replace it?"
-}
-```
-
-Status code: `409 Conflict`.
+- **Nama file sama + `replace=true`**: file lama diarsipkan (`_archive/`), status lama ditandai `superseded`.
+- **Nama file berbeda + `supersedes` diisi**: dokumen yang disebutkan di `supersedes` ditandai `superseded`, vector lama dihapus.
+- **Nama file berbeda + `supersedes` kosong**: jika hanya ada satu versi aktif di kategori tsb, otomatis dijadikan `superseded`. Jika lebih dari satu, request ditolak `409` dengan daftar `active_versions`.
 
 Jika berhasil:
 
 ```json
+ {
+   "message": "File uploaded successfully",
+   "category": "datasheet",
+-  "filename": "example.pdf"
++  "filename": "example.pdf",
++  "document_id": "datasheet:example",
++  "superseded": null
+ }
+```
+
+Jika dokumen di-flag saat screening (lihat [`screening.md`](../kebijakan/screening.md)), response `200 OK` (bukan `201`):
+
+```json
 {
-  "message": "File uploaded successfully",
-  "category": "datasheet",
-  "filename": "example.pdf"
+  "warning": "document flagged for review",
+  "flags": [{"type": "duplicate", "detail": "..."}],
+  "message": "File di-upload tetapi review diperlukan sebelum di-ingest karena \"...\"."
 }
 ```
 
-Status code: `201 Created`.
+Jika ditemukan lebih dari satu versi aktif pada kategori bervariasi tanpa `supersedes` eksplisit:
+
+```json
+{
+  "error": "multiple active versions found, specify 'supersedes' explicitly",
+  "active_versions": ["pricelist:dell_2025", "pricelist:dell_2026"]
+}
+```
+
+Status code: `409 Conflict`.
 
 ## Daftar Dokumen
 
@@ -198,6 +216,22 @@ Jika file tidak ditemukan di MinIO:
 
 ```text
 404 Not Found
+```
+
+## Download Dokumen
+
+```http
+GET /api/admin/documents/download?category=datasheet&filename=example.pdf
+```
+
+Response: file stream dengan `Content-Disposition: attachment`.
+
+### Error Response
+
+`404 Not Found` — file tidak ditemukan di storage:
+
+```json
+{ "error": "file not found in storage" }
 ```
 
 ## Document Lifecycle

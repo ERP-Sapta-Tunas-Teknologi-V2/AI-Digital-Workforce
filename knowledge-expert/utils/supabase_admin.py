@@ -1,4 +1,11 @@
-from supabase import create_client
+import httpx
+from supabase import create_client, ClientOptions
 from config import SUPABASE_URL, SUPABASE_SECRET_KEY
 
-supabase = create_client(SUPABASE_URL, SUPABASE_SECRET_KEY)
+supabase = create_client(
+    SUPABASE_URL,
+    SUPABASE_SECRET_KEY,
+    options=ClientOptions(
+        httpx_client=httpx.Client(http2=False, timeout=30)
+    )
+)
