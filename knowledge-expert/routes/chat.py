@@ -3,7 +3,8 @@ import time
 import json
 import uuid
 from threading import Thread
-from flask import Blueprint, request, jsonify, Response, stream_with_context
+from flask import Blueprint, request, jsonify, Response, stream_with_context, send_file
+from pathlib import Path
 
 from rag.retriever import hybrid_retrieve
 from rag.chain import generate_answer
@@ -12,8 +13,10 @@ from utils.anonymizer import anonymize_query
 from utils.logger import log_query, update_interaction_response, log_feedback
 from utils.injection_patterns import INJECTION_PATTERNS
 from utils.permissions import get_allowed_categories
+from utils.minio_client import file_exists, download_file
 from session.manager import SessionManager
 from session.contextualizer import contextualize_question
+from routes.admin import MIME_TYPES
 
 session_manager = SessionManager()
 
@@ -257,6 +260,34 @@ def feedback():
         return jsonify({"error": "failed to record feedback"}), 500
 
     return jsonify({"message": "feedback recorded"}), 201
+
+@chat_bp.route("/sources/download", methods=["GET"])
+@limiter.limit("30 per minute")
+def download_source():
+    category = request.args.get("category")
+    filename = request.args.get("filename")
+
+    if not filename or not isinstance(filename, str):
+        return jsonify({"error": "filename is required"}), 400
+
+    # cegah path traversal
+    filename = Path(filename).name
+
+    if not file_exists(category, filename):
+        return jsonify({"error": "file not found"}), 404
+
+    try:
+        file_stream = download_file(category, filename)
+        ext = Path(filename).suffix.lower()
+        return send_file(
+            file_stream,
+            mimetype=MIME_TYPES.get(ext, "application/octet-stream"),
+            as_attachment=True,
+            download_name=filename,
+        )
+    except Exception as e:
+        print(f"[SOURCE DOWNLOAD] failed: {e}")
+        return jsonify({"error": "failed to download document"}), 500
 
 @chat_bp.route("/sessions", methods=["POST"])
 def list_sessions():
