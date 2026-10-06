@@ -10,9 +10,10 @@ API hanya mengizinkan origin yang terdapat dalam whitelist:
 
 ```text
 http://localhost:5173
+https://2023.smartindo.com
 ```
 
-> ⚠️ **Catatan implementasi:** `ALLOWED_ORIGINS` pada `app.py` saat ini di-hardcode ke `http://localhost:5173` (origin development/Vite). Pastikan konfigurasi ini diubah sebelum deployment production.
+> ⚠️ **Catatan implementasi:** `ALLOWED_ORIGINS` di-hardcode pada `app.py`. `http://localhost:5173` (development) harus dihapus sebelum production.
 
 Origin development tidak boleh digunakan pada konfigurasi production.
 
@@ -26,13 +27,7 @@ CORS diterapkan pada endpoint API:
 
 ## Allowed Methods
 
-API hanya mengizinkan HTTP methods yang digunakan oleh application.
-
-Untuk chatbot:
-
-```text
-POST /api/chat
-```
+CORS diterapkan pada seluruh `/api/*` (Flask-CORS default: GET, POST, PUT, PATCH, DELETE, OPTIONS). Pembatasan method per endpoint dilakukan oleh route masing-masing.
 
 Preflight `OPTIONS` digunakan oleh browser apabila diperlukan.
 
@@ -59,13 +54,13 @@ Request langsung menggunakan tools seperti curl, Postman, atau Python tetap dapa
 ### Allowed Origin
 
 ```text
-Origin: https://saptatunas.com
+Origin: https://2023.smartindo.com
 ```
 
 Expected:
 
 ```text
-Access-Control-Allow-Origin: https://saptatunas.com
+Access-Control-Allow-Origin: https://2023.smartindo.com
 ```
 
 ### Disallowed Origin
@@ -90,7 +85,7 @@ Request:
 
 ```text
 OPTIONS /api/chat
-Origin: https://saptatunas.com
+Origin: https://2023.smartindo.com
 Access-Control-Request-Method: POST
 ```
 

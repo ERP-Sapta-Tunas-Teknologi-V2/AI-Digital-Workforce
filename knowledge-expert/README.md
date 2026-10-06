@@ -31,6 +31,10 @@ Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan mengh
 * Response: Server-Sent Events (SSE)
 * Distributed lock: Redis
 * Object storage: MinIO
+* Reranker: Qwen3-Reranker-0.6B (sentence-transformers CrossEncoder, in-process, bukan Ollama)
+* Vision model (opsional): minicpm-v4.5:8b — image-to-text pada `cleaner.py` saat ini dinonaktifkan (dikomentari)
+* PDF/Office parsing: pymupdf4llm, python-pptx, LibreOffice (headless)
+* Rate limiting: Flask-Limiter (storage Redis)
 
 ---
 
@@ -62,6 +66,8 @@ User Question
 BGE-M3 Embedding
    ↓
 Hybrid Search
+   ↓
+Reranking (top 3)
    ↓
 Relevant Documents
    ↓
@@ -140,7 +146,7 @@ Instal Ollama mengikuti dokumentasi resmi [Ollama Quickstart](https://docs.ollam
 Model yang digunakan:
 
 ```text
-qwen2.5
+qwen2.5:14b
 bge-m3
 minicpm-v4.5:8b
 ```
@@ -148,7 +154,7 @@ minicpm-v4.5:8b
 Instal model:
 
 ```bash
-ollama pull qwen2.5
+ollama pull qwen2.5:14b
 ollama pull bge-m3
 ollama pull minicpm-v4.5:8b
 ```
@@ -161,7 +167,7 @@ ollama list
 
 ### Redis
 
-Redis digunakan sebagai distributed lock untuk mencegah proses `sync` dan `ingest` berjalan bersamaan (duplicate/race condition), termasuk saat aplikasi berjalan dengan lebih dari satu worker/process.
+Redis digunakan untuk (1) distributed lock `sync`/`ingest` agar tidak berjalan bersamaan (duplicate/race condition), termasuk saat aplikasi berjalan dengan lebih dari satu worker/process, dan (2) storage counter rate limiting (Flask-Limiter). Aplikasi mengecek MinIO, Redis, dan Ollama saat startup (`create_app()`, retry tiap 5 detik) dan menunggu sampai ketiganya siap. Cek Redis saat ini memakai `localhost:6379` hardcoded, bukan `REDIS_URL`.
 
 #### Development (Windows):
 
@@ -323,13 +329,14 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 
 ```text
 .
-├── config/
-│   └── settings.py
+├── config.py
 ├── ingestion/
 │   ├── cleaner.py
+│   ├── image.py
 │   ├── indexer.py
 │   ├── loader.py
-│   └── splitter.py
+│   ├── splitter.py
+│   └── vectorstore.py
 ├── sync/
 │   ├── export_logs.py
 │   ├── retention.py
@@ -337,8 +344,8 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 ├── rag/
 │   ├── chain.py
 │   ├── embeddings.py
-│   ├── retriever.py
-│   └── vectorstore.py
+│   ├── reranker.py
+│   └── retriever.py
 ├── routes/
 │   ├── chat.py
 │   ├── analytics.py
@@ -349,11 +356,13 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 │   └── contextualizer.py
 ├── utils/
 │   ├── anonymizer.py
+│   ├── doc_screening.py
 │   ├── extensions.py
+│   ├── injection_patterns.py
 │   ├── locks.py
+│   ├── logger.py
 │   ├── minio_client.py
 │   ├── permissions.py
-│   ├── query_logger.py
 │   ├── status_tracker.py
 │   ├── supabase_admin.py
 │   └── supabase_client.py
@@ -368,6 +377,7 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 ├── log/
 ├── documentation/
 ├── .env
+├── .env.example
 ├── requirements.txt
 ├── supabase.sql
 ├── ingest.py
@@ -433,16 +443,26 @@ SUPABASE_KEY=PUBLISHABLE-KEY
 SUPABASE_SECRET_KEY=SECRET-KEY
 
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_LLM=qwen2.5
+OLLAMA_LLM=qwen2.5:14b
 EMBEDDING_MODEL=bge-m3
+RERANKER_MODEL=Qwen/Qwen3-Reranker-0.6B
+VISION_MODEL=minicpm-v4.5:8b
+
+MINIO_ENDPOINT=localhost:9000
+MINIO_ACCESS_KEY=
+MINIO_SECRET_KEY=
+MINIO_SECURE=false
+MINIO_BUCKET=knowledge-expert
 
 REDIS_URL=redis://localhost:6379/0
 ```
 
+`EMBEDDING_MODEL` harus `bge-m3`, karena tokenizer dimuat dari `BAAI/{EMBEDDING_MODEL}`. Tokenizer dan reranker diunduh dari HuggingFace saat pertama kali dijalankan (server perlu akses internet atau cache model). Setiap Gunicorn worker memuat reranker dan tokenizer sendiri, jadi perhitungkan RAM (3 worker × model).
+
 Nama variable harus disesuaikan dengan konfigurasi pada:
 
 ```text
-config/settings.py
+config.py
 ```
 
 Jangan commit `.env` ke repository.
@@ -496,6 +516,12 @@ Install dependencies:
 
 ```bash
 pip install -r requirements.txt
+```
+
+Buat folder log (folder `log/` ada di `.gitignore`, sedangkan kode membuka `log/log_time.txt` tanpa membuatnya, sehingga clone baru bisa gagal pada request pertama):
+
+```bash
+mkdir log
 ```
 
 ---
@@ -575,6 +601,8 @@ Flask
    ↓
 RAG
    ├── Supabase
+   ├── MinIO
+   ├── Redis
    ├── BGE-M3 (Ollama)
    └── Qwen2.5 (Ollama)
 ```
@@ -595,7 +623,7 @@ libreoffice --version
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen2.5
+ollama pull qwen2.5:14b
 ollama pull bge-m3
 ollama pull minicpm-v4.5:8b
 ollama list
@@ -662,11 +690,13 @@ Buat `/etc/nginx/sites-available/AI-Digital-Workforce`:
 server {
     listen 80;
     server_name saptatunas.com;
+    client_max_body_size 50m;   # default 1m → upload dokumen gagal (413)
 
     location /api/chat {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_buffering off;
         proxy_cache off;
         proxy_read_timeout 300s;
@@ -676,6 +706,8 @@ server {
         proxy_pass http://127.0.0.1:8000;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_read_timeout 300s;
     }
 }
 ```
@@ -687,6 +719,8 @@ sudo systemctl restart nginx
 ```
 
 `proxy_buffering off` wajib pada `/api/chat` agar SSE stream diteruskan secara real-time, bukan di-buffer oleh Nginx.
+
+`X-Forwarded-For` wajib dikirim pada kedua `location`: `app.py` memakai `ProxyFix(x_for=1)`, dan tanpa header ini semua client terlihat sebagai `127.0.0.1` sehingga berbagi satu rate limit.
 
 ### 6. HTTPS dengan Certbot
 
@@ -708,6 +742,13 @@ SUPABASE_SECRET_KEY
 OLLAMA_BASE_URL
 OLLAMA_LLM
 EMBEDDING_MODEL
+RERANKER_MODEL
+VISION_MODEL
+MINIO_ENDPOINT
+MINIO_ACCESS_KEY
+MINIO_SECRET_KEY
+MINIO_SECURE
+MINIO_BUCKET
 REDIS_URL
 ```
 

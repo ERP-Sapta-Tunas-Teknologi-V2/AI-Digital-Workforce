@@ -133,6 +133,14 @@ llm_total
 request_total
 ```
 
+Metric dicatat di `log/log_time.txt` (`embedding`, `search`, `rerank`, `total`, `ttft`, LLM `total`, `[REQUEST] total`).
+
+### Definisi metrik (sesuai implementasi)
+
+* `ttft` dihitung dari awal pemanggilan LLM, **tidak** termasuk retrieval maupun contextualizer.
+* Waktu token pertama yang dirasakan user = contextualizer + retrieval + TTFT LLM. Contextualizer (satu panggilan LLM tambahan jika ada history) belum diukur.
+* Baseline diukur dengan `candidate_k=10`. Konfigurasi sekarang `candidate_k=30`, jadi baseline perlu diukur ulang.
+
 ## 8. SLA Validation
 
 SLA production belum dinyatakan tercapai berdasarkan pengujian saat ini.

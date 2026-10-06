@@ -15,15 +15,22 @@ Body:
 
 ```json
 {
-  "question": "..."
+  "question": "...",
+  "session_id": "uuid (opsional)",
+  "user_id": "string (opsional)"
 }
 ```
 
 ### Request Parameters
 
-| Parameter  | Type   | Required | Description         |
-| ---------- | ------ | -------- | ------------------- |
-| `question` | string | Yes      | Pertanyaan pengguna |
+| Parameter    | Type   | Required | Description                                                   |
+| ------------ | ------ | -------- | ------------------------------------------------------------- |
+| `question`   | string | Ya       | Pertanyaan pengguna (maks. 1000 karakter)                     |
+| `session_id` | string | Tidak    | ID session. Jika kosong/tidak ditemukan, session baru dibuat  |
+| `user_id`    | string | Tidak    | Identifier user, disimpan pada session (belum diverifikasi)   |
+
+Header opsional: `X-User-Role` (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)).
+Rate limit: 10 request/menit/IP → `429`.
 
 ### Validation
 
@@ -34,6 +41,8 @@ Body:
 | `question` kosong           | `400`    |
 | `question` > 1000 karakter  | `400`    |
 | terdeteksi prompt injection | `400`    |
+| body bukan JSON valid       | `400` (`invalid JSON`) |
+| body bukan object           | `400` (`request body must be an object`) |
 
 Contoh:
 
@@ -71,38 +80,19 @@ Response terdiri dari beberapa event.
 
 ### 1. Metadata Event
 
-Dikirim sebelum token jawaban.
+Dikirim sebelum token jawaban. `sources` **tidak lagi** dikirim pada event ini.
 
 ```text
-data: {"type":"metadata","sources":[...],"fallback":false}
+data: {"type":"metadata","session_id":"...","request_id":"...","fallback":false}
 ```
 
-Format:
-
-```json
-{
-  "type": "metadata",
-  "sources": [
-    {
-      "page": [1,2],
-      "source": "...",
-      "category": "datasheet",
-      "uploaded_at": "...",
-      "section_title": "...",
-      "version": 1
-    }
-  ],
-  "fallback": false
-}
-```
+`request_id` dipakai untuk `POST /api/feedback`. `session_id` disimpan client untuk request berikutnya.
 
 ### 2. Token Event
 
 Berisi potongan jawaban dari LLM.
 
 ```text
-data: {"type":"token","content":"..."}
-data: {"type":"token","content":"..."}
 data: {"type":"token","content":"..."}
 ```
 
@@ -115,9 +105,33 @@ Format:
 }
 ```
 
-Frontend harus menggabungkan seluruh `content` dari event `token` untuk membentuk jawaban lengkap.
+Frontend menggabungkan `content` dari event `token` untuk menampilkan jawaban secara bertahap.
 
-### 3. Done Event
+### 3. Answer Event
+
+Jawaban lengkap setelah streaming selesai. Frontend mengganti buffer token dengan isi ini.
+
+```text
+data: {"type":"answer","content":"..."}
+```
+
+### 4. Sources Event
+
+Hanya berisi source yang benar-benar disitasi pada jawaban (`[1]`, `[2]`, ...). Jika LLM tidak menyitasi apa pun, `sources` kosong.
+
+```text
+data: {"type":"sources","sources":[{"citation":"1","page":[1,2],"source":"...","category":"...","uploaded_at":"...","section_title":"...","version":1}]}
+```
+
+### 5. Error Event
+
+Dikirim jika LLM gagal di tengah stream. Stream berhenti tanpa event `done`.
+
+```text
+data: {"type":"error","content":"Request gagal diproses."}
+```
+
+### 6. Done Event
 
 Menandakan streaming telah selesai.
 
@@ -125,60 +139,49 @@ Menandakan streaming telah selesai.
 data: {"type":"done"}
 ```
 
-Format:
-
-```json
-{
-  "type": "done"
-}
-```
-
 ## Successful Response Flow
 
 ```text
-POST /api/chat
-        ↓
-metadata
-        ↓
-token
-        ↓
-token
-        ↓
-token
-        ↓
-...
-        ↓
-done
+metadata → token… → answer → sources → done
 ```
 
 Contoh lengkap:
 
 ```text
-data: {"type":"metadata","sources":[...],"fallback":false}
+data: {"type":"metadata","session_id":"...","request_id":"...","fallback":false}
 
 data: {"type":"token","content":"..."}
 
 data: {"type":"token","content":"..."}
 
-data: {"type":"token","content":"..."}
+data: {"type":"answer","content":"..."}
+
+data: {"type":"sources","sources":[...]}
 
 data: {"type":"done"}
 ```
 
 ## Fallback Response (JSON)
 
-Jika tidak ada chunk yang memenuhi threshold retrieval, backend tidak melakukan proses generation LLM dan mengembalikan JSON biasa (bukan SSE).
+Jika hybrid search tidak mengembalikan kandidat sama sekali, backend tidak melakukan proses generation LLM dan mengembalikan JSON biasa (bukan SSE).
+
+> Threshold rerank (`RERANK_THRESHOLD`) saat ini **dinonaktifkan** (dikomentari di `retriever.py`). Jika ada kandidat, 3 teratas selalu dikirim ke LLM, sehingga "Informasi tidak ditemukan" juga bisa muncul sebagai jawaban SSE biasa dengan status log `completed`.
 
 Response:
 
 ```json
 {
+  "session_id": "...",
+  "request_id": "...",
   "question": "...",
   "answer": "Informasi tidak ditemukan dalam knowledge base. Silakan hubungi kontak kami.",
+  "context": "",
   "sources": [],
   "fallback": true
 }
 ```
+
+`question` berisi query yang sudah di-anonymize. `context` selalu string kosong pada fallback.
 
 `fallback: true` menunjukkan bahwa tidak ditemukan informasi yang relevan dalam knowledge base.
 
@@ -190,14 +193,16 @@ fallback: false
 
 ## Sources
 
-`metadata.sources` (pada SSE) berisi source dari chunk yang benar-benar digunakan untuk menghasilkan jawaban.
+Source dikirim melalui event `sources` (bukan `metadata`) dan hanya berisi chunk yang disitasi pada jawaban.
 
 Contoh:
 
 ```json
 {
+  "type": "sources",
   "sources": [
     {
+      "citation": "1",
       "page": [1,2],
       "source": "...",
       "category": "datasheet",
@@ -205,11 +210,11 @@ Contoh:
       "section_title": "...",
       "version": 1
     }
-  ],
+  ]
 }
 ```
 
-Frontend dapat menggunakan `source` untuk menampilkan nama dokumen sumber.
+Frontend dapat menggunakan `source` untuk menampilkan nama dokumen sumber, dan `citation` untuk mencocokkan nomor sitasi pada teks jawaban.
 
 Field internal berikut tidak perlu digunakan oleh frontend:
 
@@ -225,15 +230,13 @@ embedding
 
 ## Context
 
-`context` tidak dikirim ke frontend.
-
-Context merupakan data internal RAG yang digunakan oleh backend untuk memberikan informasi kepada LLM.
+`context` tidak dikirim pada response SSE. Context merupakan data internal RAG yang digunakan oleh backend untuk memberikan informasi kepada LLM. Saat ini field `context` ikut dikirim (kosong) pada fallback JSON.
 
 Frontend menerima:
 
-- `question` pada fallback response
-- `token.content` untuk membentuk answer (response normal/SSE)
-- `sources` melalui metadata event (response normal/SSE) atau field `sources` (fallback)
+- `session_id` dan `request_id` melalui metadata event (SSE) atau field fallback JSON
+- `token.content` untuk menampilkan jawaban bertahap, dan `answer.content` sebagai jawaban final (SSE)
+- `sources` melalui sources event (SSE) atau field `sources` (fallback)
 - `fallback` untuk mengetahui apakah response merupakan fallback
 
 ## Error Response
@@ -286,7 +289,8 @@ Request:
 
 ```json
 {
-  "question": "..."
+  "question": "...",
+  "session_id": "..."
 }
 ```
 
@@ -294,10 +298,9 @@ Response menggunakan SSE (normal) atau JSON (fallback):
 
 ```text
 metadata
-→ token
-→ token
-→ token
-→ ...
+→ token…
+→ answer
+→ sources
 → done
 ```
 
@@ -351,6 +354,11 @@ while (true) {
     const data = JSON.parse(event.slice(6));
 
     if (data.type === "metadata") {
+      sessionId = data.session_id;
+      requestId = data.request_id;
+    }
+
+    if (data.type === "sources") {
       console.log("Sources:", data.sources);
     }
 
@@ -371,31 +379,25 @@ while (true) {
 ```text
 User Question
      ↓
-Query Validation
+Query Validation (+ injection check)
      ↓
-Hybrid Search
+Session get/create → History → Contextualizer
      ↓
-Candidate Documents
+Interaction log (status: started)
      ↓
-Reranking
+Hybrid Search (BGE-M3 + FTS, RRF)
      ↓
-Threshold Filtering
+Reranking (top 3)
      ↓
-No Relevant Chunk?
-     ├── Yes → Fallback Response
-     │
-     └── No
-          ↓
-       Sources
-          ↓
-       Dola Seed
-          ↓
-       Streaming
-          ↓
-       SSE
-          ↓
-       FE Widget
+Tidak ada dokumen? ── Ya ──→ Fallback JSON
+     │ Tidak
+     ↓
+Qwen2.5 (streaming)
+     ↓
+SSE: metadata → token… → answer → sources → done
 ```
+
+> Threshold filtering saat ini nonaktif (`RERANK_THRESHOLD` dikomentari di `retriever.py`). Fallback hanya terjadi jika hybrid search tidak mengembalikan kandidat sama sekali.
 
 ## Retrieval Configuration
 
@@ -403,9 +405,10 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 
 | Parameter           | Value |
 | ------------------- | ----: |
-| Candidate documents |    10 |
+| Candidate documents |    30 |
 | Reranked documents  |     3 |
-| RRF k               |    50 |
+| RRF k               |    10 |
+| Reranker            | CrossEncoder (`RERANKER_MODEL`, default Qwen3-Reranker-0.6B) |
 
 ## API Contract Summary
 
@@ -420,33 +423,44 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | Fallback Content-Type | `application/json`   |
 | Query field           | `question`           |
 | Streaming event       | `token`              |
-| Source event          | `metadata`           |
+| Metadata event        | `metadata`           |
+| Final answer event    | `answer`             |
+| Source event          | `sources`            |
+| Error event           | `error`              |
 | Completion event      | `done`               |
 | Fallback field        | `fallback`           |
 | Max query length      | 1000 characters      |
 
 ## Daftar Seluruh Endpoint
 
-| Endpoint               | Method | Akses           |
-| ----------------------- | ------ | --------------- |
-| `/api/chat`             | POST   | Public          |
-| `/api/feedback`         | POST   | Public          |
-| `POST /api/sessions`    | POST   | Public          |
-| `GET /api/sessions/all` | GET    | Public          |
-| `POST /api/sessions/search` | POST | Public       |
-| `GET /api/sessions/<id>`| GET    | Public          |
-| `DELETE /api/sessions/<id>` | DELETE | Public      |
-| `/api/admin/ingest`     | POST   | Admin           |
-| `/api/admin/sync`       | POST   | Admin           |
-| `/api/logs/export`      | GET    | Admin           |
-| `/api/logs/top-faq`     | GET    | Admin           |
-| `/api/analytics/problematic-answers` | GET | Admin |
-| `/api/analytics/flagged-documents`   | GET | Admin |
-| `/`                     | GET    | Public          |
+| Endpoint                                  | Method      | Akses            | Rate limit |
+| ----------------------------------------- | ----------- | ---------------- | ---------- |
+| `/api/chat`                               | POST        | Public           | 10/menit   |
+| `/api/feedback`                           | POST        | Public           | 20/menit   |
+| `/api/sources/download`                   | GET         | Public           | 30/menit   |
+| `/api/sessions`                           | POST        | Public           | -          |
+| `/api/sessions/all`                       | GET         | Public           | -          |
+| `/api/sessions/search`                    | POST        | Public           | -          |
+| `/api/sessions/<id>`                      | GET, DELETE | Public           | -          |
+| `/api/admin/documents/upload`             | POST        | Admin*           | -          |
+| `/api/admin/documents`                    | GET         | Admin*           | -          |
+| `/api/admin/documents/download`           | GET         | Admin*           | -          |
+| `/api/admin/documents/delete`             | DELETE      | Admin*           | -          |
+| `/api/admin/ingest`                       | POST        | Admin*           | -          |
+| `/api/admin/un-ingest`                    | POST        | Admin*           | -          |
+| `/api/admin/sync`                         | POST        | Admin*           | -          |
+| `/api/logs/export`                        | GET         | Admin*           | -          |
+| `/api/logs/top-faq`                       | GET         | Admin*           | -          |
+| `/api/analytics/problematic-answers`      | GET         | Admin*           | -          |
+| `/api/analytics/flagged-documents`        | GET         | Admin*           | -          |
+| `/api/analytics/dashboard-summary`        | GET         | Admin*           | -          |
+| `/`, `/dashboard`                         | GET         | Public (halaman) | -          |
+
+\* `@require_role("Admin")` saat ini dikomentari di `admin.py` dan `analytics.py` (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)).
 
 ## POST /api/admin/ingest
 
-Endpoint untuk melakukan indexing dokumen yang sudah tersimpan di sistem.
+Endpoint untuk melakukan indexing dokumen yang sudah tersimpan di MinIO.
 
 ### Akses
 
@@ -467,19 +481,23 @@ Body:
 
 ```json
 {
-  "path": "path/to/file.docx"
+  "category": "datasheet",
+  "filename": "example.pdf"
 }
 ```
 
-| Parameter | Type   | Required | Description                         |
-| --------- | ------ | -------- | ------------------------------------ |
-| `path`    | string | Yes      | Path file dokumen yang akan di-index |
+| Parameter  | Type   | Required | Description                      |
+| ---------- | ------ | -------- | --------------------------------- |
+| `category` | string | Ya       | Salah satu dari 12 kategori       |
+| `filename` | string | Ya       | Nama file yang sudah ada di MinIO |
 
 Format file yang didukung:
 
 ```text
-.docx
 .pdf
+.docx
+.xlsx
+.pptx
 ```
 
 ### Response
@@ -491,35 +509,33 @@ Proses berjalan secara asynchronous (background thread).
 ```json
 {
   "message": "ingest started",
-  "file": "file.docx"
+  "file": "example.pdf"
 }
 ```
 
 ### Error Response
 
-`400 Bad Request` — path tidak dikirim atau ekstensi tidak didukung:
+`400 Bad Request`:
 
 ```json
-{
-  "error": "path is required"
-}
+{ "error": "category must be one of [...]" }
 ```
 
 ```json
-{
-  "error": "unsupported file type: .jpg"
-}
+{ "error": "filename is required" }
 ```
-
-`404 Not Found` — file tidak ditemukan di path yang diberikan:
 
 ```json
-{
-  "error": "file not found"
-}
+{ "error": "unsupported file type: .jpg" }
 ```
 
-`401` / `403` — sama seperti `/api/admin/sync`.
+`404 Not Found` — file tidak ditemukan di MinIO:
+
+```json
+{ "error": "file not found in storage" }
+```
+
+`409 Conflict` — ingest untuk file yang sama sedang berjalan, **atau** dokumen di-flag `duplicate`/`confidential` (ingest diblokir menunggu review, lihat [`screening.md`](../kebijakan/screening.md)).
 
 ---
 
@@ -548,17 +564,17 @@ POST /api/admin/sync
 Content-Type: application/json
 ```
 
-Body:
+Body (opsional, boleh kosong `{}` untuk semua kategori):
 
 ```json
 {
-  "category": "stt"
+  "category": "datasheet"
 }
 ```
 
-| Parameter  | Type   | Required | Description                                                              |
-| ---------- | ------ | -------- | ------------------------------------------------------------------------ |
-| `category` | string | Yes      | Nama folder di root project (berisi dokumen sumber); `berita` atau `stt` |
+| Parameter  | Type   | Required | Description |
+| ---------- | ------ | -------- | ----------- |
+| `category` | string | Tidak    | Salah satu dari: general, sop, pricelist, case, meeting, training, solution, proposal, guide, competitive, datasheet, sow. Kosong = semua kategori |
 
 ### Response
 
@@ -568,7 +584,7 @@ Proses berjalan secara asynchronous (background thread). Endpoint langsung menge
 
 ```json
 {
-  "message": "sync started for category 'berita'"
+  "message": "sync started for category 'datasheet'"
 }
 ```
 
@@ -578,25 +594,19 @@ Proses berjalan secara asynchronous (background thread). Endpoint langsung menge
 
 ```json
 {
-  "error": "category must be one of ['berita', 'stt']"
+  "error": "category must be one of ['case', 'competitive', ...]"
 }
 ```
 
-`401 Unauthorized` — role tidak dikirim:
+`409 Conflict` — sync untuk kategori (atau `all`) yang sama sedang berjalan:
 
 ```json
 {
-  "error": "authentication required"
+  "error": "sync already running for 'datasheet'"
 }
 ```
 
-`403 Forbidden` — role tidak memiliki akses:
-
-```json
-{
-  "error": "forbidden"
-}
-```
+> Respons `401`/`403` untuk endpoint admin tidak berlaku sampai decorator `require_role` diaktifkan kembali.
 
 ---
 
@@ -674,8 +684,9 @@ GET /api/logs/top-faq?days=30&limit=5
 ```json
 [
   {
-    "question": "...",
-    "count": 0
+    "query": "...",
+    "total_queries": 12,
+    "last_asked": "2026-09-08T09:30:00+07:00"
   }
 ]
 ```
@@ -761,7 +772,7 @@ Satu `request_id` hanya dapat memiliki satu feedback. Mengirim feedback baru unt
 
 ## Sessions (Sidebar)
 
-Endpoint pendukung fitur riwayat percakapan pada sidebar widget chat. Karena widget publik tidak memiliki authentication, daftar `session_id` disimpan di localStorage browser client; endpoint ini tidak melakukan validasi ownership (lihat [`session.md`](../kebijakan/session.md#75-sidebar-riwayat-percakapan)).
+Endpoint pendukung fitur riwayat percakapan pada sidebar widget chat. Frontend chat saat ini memakai `GET /api/sessions/all` (mode localStorage dikomentari di `chat.js`); endpoint ini tidak melakukan validasi ownership (lihat [`session.md`](../kebijakan/session.md#75-sidebar-riwayat-percakapan)).
 
 ### POST /api/sessions
 
@@ -778,13 +789,15 @@ Body:
 
 ```json
 {
-  "session_ids": ["...", "..."]
+  "user_id": "..."
 }
 ```
 
-| Parameter      | Type  | Required | Description                                   |
-| --------------- | ----- | -------- | ------------------------------------------------ |
-| `session_ids`  | array | Yes      | Daftar `session_id` yang tersimpan di localStorage client |
+| Parameter | Type   | Required | Description                                    |
+| --------- | ------ | -------- | ----------------------------------------------- |
+| `user_id` | string | Ya       | Mengembalikan session milik `user_id` tersebut |
+
+> Frontend chat saat ini memakai `GET /api/sessions/all`, bukan endpoint ini.
 
 #### Response
 
@@ -866,7 +879,7 @@ Mencari session berdasarkan isi pesan (case-insensitive, `ILIKE`).
 
 ### GET /api/sessions/{session_id}
 
-Mengambil riwayat pesan lengkap satu session, digunakan untuk menampilkan ulang percakapan saat item sidebar diklik.
+Mengambil riwayat pesan satu session (hanya **10 pesan terakhir**), digunakan untuk menampilkan ulang percakapan saat item sidebar diklik.
 
 #### Request
 
@@ -990,7 +1003,7 @@ Jika tidak ada data, mengembalikan array kosong `[]`.
 
 ## GET /api/analytics/flagged-documents
 
-Endpoint untuk mendapatkan daftar dokumen yang paling sering dirujuk pada jawaban yang mendapat downvote, digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi.
+Endpoint untuk mendapatkan daftar dokumen (dikelompokkan per `source` dan `chunk_index`) yang paling sering dirujuk pada jawaban yang mendapat downvote, digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi.
 
 ### Akses
 
@@ -1014,9 +1027,8 @@ GET /api/analytics/flagged-documents?days=30&limit=20
 ```json
 [
   {
-    "document_id": "pricelist:dell",
     "source": "pricelist_dell.xlsx",
-    "category": "pricelist",
+    "chunk_index": 3,
     "flagged_count": 4,
     "total_referenced_count": 10,
     "flag_ratio": 0.40
@@ -1028,7 +1040,41 @@ GET /api/analytics/flagged-documents?days=30&limit=20
 
 Jika tidak ada data, mengembalikan array kosong `[]`.
 
+---
 
+## GET /api/analytics/dashboard-summary
+
+Endpoint ringkasan untuk dashboard monitoring. Akses dibatasi untuk role `Admin`.
+
+```http
+GET /api/analytics/dashboard-summary?days=30
+```
+
+`200 OK`
+
+```json
+{
+  "query_volume": [{ "date": "2026-09-08", "total": 14 }],
+  "total_queries": 120,
+  "total_feedback": 30,
+  "positive_feedback_rate": 76.67,
+  "top_referenced_documents": [{ "source": "...", "category": "...", "referenced_count": 9 }]
+}
+```
+
+---
+
+## GET /api/sources/download
+
+Mengunduh dokumen sumber dari MinIO (`Content-Disposition: attachment`). Public, 30 request/menit/IP.
+
+```http
+GET /api/sources/download?category=datasheet&filename=example.pdf
+```
+
+`400` filename kosong · `404` file tidak ditemukan · `500` gagal mengunduh
+
+> ⚠️ Endpoint ini tidak melewati RBAC kategori.
 
 ---
 
@@ -1060,17 +1106,17 @@ Retrieval mencatat:
 
 ```text
 embedding
+embedding_tokens
 search
 rerank
-threshold
 relevant
 total
 ```
 
-Log waktu:
+Log waktu dan LLM:
 
 ```text
-log/log_retrieval-time.txt
+log/log_time.txt             → latency retrieval (embedding, search, rerank, relevant, total) dan LLM (ttft, total, request total)
 ```
 
 Log dokumen dan rerank score:
@@ -1086,7 +1132,7 @@ Log ini digunakan untuk QA dan monitoring latency retrieval.
 Performance retrieval dapat dievaluasi menggunakan log:
 
 ```text
-log/log_retrieval-time.txt
+log/log_time.txt
 log/log_retrieval-docs.txt
 ```
 

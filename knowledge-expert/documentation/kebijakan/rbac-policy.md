@@ -1,5 +1,10 @@
 # RBAC Policy
 
+> ⚠️ **Status implementasi:** Retrieval filtering **belum aktif**. Pada `routes/chat.py`, argumen
+> `allowed_categories=get_allowed_categories(role)` dikomentari, sehingga semua request mengakses seluruh kategori
+> dan `log_rbac_audit.txt` tidak pernah ditulis. `@require_role("Admin")` juga dikomentari di `admin.py` **dan** `analytics.py`.
+> `dashboard.js` mengirim `X-User-Role: Admin` secara hardcode, sedangkan `chat.js` tidak mengirim `X-User-Role`.
+
 ## 1. Objective
 
 Kebijakan ini mengatur akses berbasis role terhadap dua area berbeda pada sistem:
@@ -44,7 +49,11 @@ Berlaku untuk endpoint yang menggunakan decorator `require_role`.
 | `/api/admin/sync` | POST | Admin |
 | `/api/logs/export` | GET | Admin |
 | `/api/logs/top-faq` | GET | Admin |
+| `/api/analytics/problematic-answers` | GET | Admin |
+| `/api/analytics/flagged-documents` | GET | Admin |
+| `/api/analytics/dashboard-summary` | GET | Admin |
 | `/api/chat` | POST | Public (tidak dibatasi role) |
+| `/api/feedback`, `/api/sessions*`, `/api/sources/download` | * | Public (tanpa role & tanpa RBAC kategori) |
 
 ### Response Tanpa Role
 
@@ -91,7 +100,7 @@ Membatasi kategori dokumen yang boleh digunakan sebagai konteks retrieval berdas
 | --- | --- |
 | Header `X-User-Role` **tidak dikirim** | Tidak difilter — seluruh kategori diizinkan (perilaku legacy, dipakai widget chat publik) |
 | Header `X-User-Role` **dikirim** dengan role dikenal | Sesuai matrix pada 4.1 |
-| Header `X-User-Role` **dikirim** dengan role tidak dikenal | Hanya kategori dengan akses "Semua role" (SOP, Training Material) |
+| Header `X-User-Role` **dikirim** dengan role tidak dikenal (termasuk `Admin` atau string kosong) | Hanya kategori "Semua role": general, sop, case, training, proposal, competitive, sow |
 
 ### 4.3 Titik Penerapan
 
@@ -118,15 +127,15 @@ Context → LLM
 **Role: Sales, pertanyaan tentang harga**
 
 ```text
-allowed_categories = [sop, datasheet, pricelist, meeting, training]
+allowed_categories = [general, sop, pricelist, case, meeting, training, proposal, competitive, datasheet, sow]
 → chunk pricelist dapat digunakan sebagai konteks
 ```
 
 **Role: Solution Architect, pertanyaan tentang harga**
 
 ```text
-allowed_categories = [sop, guide, datasheet, training]
-→ chunk pricelist TIDAK di-retrieve, meskipun relevan secara semantik
+allowed_categories = [general, sop, case, training, solution, proposal, guide, competitive, datasheet, sow]
+→ chunk pricelist dan meeting TIDAK di-retrieve, meskipun relevan secara semantik
 → jika seluruh dokumen relevan berada di kategori pricelist,
   chatbot menjawab fallback: "Informasi tidak ditemukan dalam knowledge base."
 ```
@@ -192,5 +201,8 @@ Keempatnya saling melengkapi dan tidak menggantikan satu sama lain. CORS dan rat
 
 1. **Role tidak diverifikasi.** Header `X-User-Role` dapat dikirim oleh siapa saja tanpa proses login/token. Siapa pun yang tahu cara mengisi header dapat mengklaim role manapun. RBAC saat ini bersifat **kontrol akses berbasis klaim (claim-based)**, bukan kontrol akses yang terautentikasi penuh.
 2. **Endpoint chat publik tanpa role = tanpa filter.** Karena tujuan desain saat ini adalah mendukung widget chat publik di `/` tanpa login, permintaan tanpa header `X-User-Role` **tidak difilter sama sekali** dan dapat mengakses seluruh kategori dokumen, termasuk Pricelist dan Meeting Notes. Ini adalah keputusan desain sementara, bukan default yang aman (secure-by-default) — perlu direview sebelum kategori sensitif baru ditambahkan.
-3. **Decorator `require_role` di `admin.py` sedang non-aktif.** Endpoint admin (upload, ingest, delete, sync, dll.) saat ini dapat diakses tanpa role sampai decorator diaktifkan kembali di kode.
-3. **Rekomendasi jangka panjang:** ganti header `X-User-Role` dengan token terautentikasi (misalnya JWT/session yang divalidasi backend) agar role tidak dapat dipalsukan oleh client, karena saat ini role hanya berbasis klaim tanpa verifikasi identitas.
+3. **Decorator `require_role` non-aktif** di `admin.py` dan `analytics.py`. Endpoint admin dan analytics dapat diakses tanpa role sampai decorator diaktifkan kembali di kode.
+4. **RBAC retrieval filter non-aktif** di `chat.py` (lihat banner status di atas).
+5. **`GET /api/sessions/all` mengembalikan semua session ke siapa pun**, dan `GET/DELETE /api/sessions/<id>` tanpa validasi ownership.
+6. **`GET /api/sources/download` publik dan tidak melewati RBAC kategori.** Siapa pun yang tahu `category` dan `filename` bisa mengunduh dokumen apa pun, termasuk Pricelist.
+7. **Rekomendasi jangka panjang:** ganti header `X-User-Role` dengan token terautentikasi (misalnya JWT/session yang divalidasi backend) agar role tidak dapat dipalsukan oleh client, karena saat ini role hanya berbasis klaim tanpa verifikasi identitas.

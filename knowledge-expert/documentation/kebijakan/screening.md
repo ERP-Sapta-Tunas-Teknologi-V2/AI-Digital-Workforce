@@ -29,3 +29,17 @@ Jika tidak ditemukan masalah yang memerlukan review, dokumen dapat di-ingest.
 **Upload → Pemeriksaan → Simpan → Review jika diperlukan → Ingest jika disetujui**
 
 Tujuannya adalah mencegah dokumen duplikat atau dokumen yang berpotensi sensitif digunakan tanpa pemeriksaan.
+
+## Detail Implementasi
+
+| Flag           | Sumber deteksi                                                         | Memblokir ingest?      |
+| -------------- | ---------------------------------------------------------------------- | ---------------------- |
+| `duplicate`    | SHA-256 isi file sama dengan dokumen lain                              | Ya                     |
+| `confidential` | Pola teks (mis. "confidential", "internal only", "rahasia perusahaan") | Ya                     |
+| `stale`        | Pola teks (draft, deprecated, expired, kadaluarsa, tidak berlaku lagi) | Tidak (hanya ditandai) |
+| `clean`        | Tidak ada temuan (hash tetap disimpan untuk deteksi duplikat)          | -                      |
+
+* Screening berjalan saat **upload** dan **sync**. Endpoint `/ingest` hanya membaca flag yang sudah tersimpan.
+* Pemindaian teks hanya untuk **.pdf dan .docx** (5.000 karakter pertama). `.xlsx` dan `.pptx` hanya diperiksa duplikat.
+* `POST /api/admin/ingest` membalas `409` untuk dokumen `duplicate`/`confidential`, dan Sync melewatinya.
+* Pesan error menyebut "endpoint override", tetapi endpoint tersebut **belum ada**. Saat ini dokumen yang diblokir harus diperbaiki lalu di-upload ulang (screening dijalankan ulang saat upload, flag lama dibersihkan) atau dokumen dihapus.

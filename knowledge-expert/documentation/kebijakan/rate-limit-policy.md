@@ -6,10 +6,19 @@ Membatasi jumlah request chatbot dari setiap IP untuk mencegah abuse, burst traf
 
 ## Rate Limit
 
+| Endpoint                     | Limit (per IP)                                        |
+| ---------------------------- | ----------------------------------------------------- |
+| `POST /api/chat`             | 10 / menit                                            |
+| `POST /api/feedback`         | 20 / menit                                            |
+| `GET /api/sources/download`  | 30 / menit                                            |
+| `GET /api/rate-limit-test`   | 10 / menit (endpoint uji, tanpa pipeline RAG; hapus di production) |
+
+Endpoint lain (sessions, admin, analytics) belum dibatasi. Counter dihitung per endpoint dan disimpan di Redis (`REDIS_URL`), sehingga limit konsisten antar worker Gunicorn.
+
+Parameter umum:
+
 | Parameter                      | Policy                                                                   |
 | ------------------------------ | ------------------------------------------------------------------------ |
-| Endpoint                       | `POST /api/chat`                                                         |
-| Limit                          | 10 request per menit                                                     |
 | Scope                          | Per IP address                                                           |
 | Response ketika limit tercapai | HTTP 429                                                                 |
 | Response format                | JSON                                                                     |
@@ -138,3 +147,5 @@ After window reset → HTTP 200
 ## Production Consideration
 
 Jika aplikasi dijalankan di belakang reverse proxy atau load balancer, konfigurasi trusted proxy harus diperhatikan agar IP client yang digunakan untuk rate limiting dapat diidentifikasi dengan benar.
+
+`app.py` memakai `ProxyFix(x_for=1)`, yang membaca header `X-Forwarded-For`. Nginx **wajib** mengirim header ini (`proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;`). Tanpa itu, semua client terlihat sebagai `127.0.0.1` dan berbagi satu limit.

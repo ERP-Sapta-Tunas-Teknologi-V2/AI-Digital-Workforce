@@ -204,11 +204,12 @@ Conversation history disimpan berdasarkan `session_id`.
 Struktur:
 
 ```text
-conversation_messages
+session_messages
 ├── id
 ├── session_id
 ├── role
 ├── content
+├── sources (jsonb)
 └── created_at
 ```
 
@@ -344,6 +345,8 @@ History lama dapat dikeluarkan apabila menyebabkan context melebihi batas token.
 
 Jika diperlukan, history dapat diringkas menggunakan conversation summary pada tahap implementasi berikutnya.
 
+Saat ini history yang dikirim ke contextualizer dibatasi 10 pesan terakhir (`SessionManager.get_history(limit=10)`).
+
 # 6. Follow-up Question
 
 ## 6.1 Purpose
@@ -381,7 +384,7 @@ Current question asli tetap digunakan sebagai pertanyaan user untuk final answer
 Contextual Question
 → Retrieval
 
-Original Question
+Pertanyaan asli (setelah anonymization)
 → Final LLM
 ```
 
@@ -436,13 +439,10 @@ Application membuat session baru.
 
 ## 7.3 Response
 
-Response mengembalikan `session_id`:
+Response mengembalikan `session_id` dan `request_id` melalui **event `metadata` SSE** (atau field pada fallback JSON), bukan field JSON `answer`:
 
-```json
-{
-  "session_id": "...",
-  "answer": "..."
-}
+```text
+data: {"type":"metadata","session_id":"...","request_id":"...","fallback":false}
 ```
 
 Client menggunakan `session_id` tersebut untuk request berikutnya.
@@ -453,11 +453,8 @@ Apabila client mengirim `session_id` yang expired, application membuat session b
 
 Contoh:
 
-```json
-{
-  "session_id": "new-session-uuid",
-  "answer": "..."
-}
+```text
+data: {"type":"metadata","session_id":"new-session-uuid","request_id":"...","fallback":false}
 ```
 
 Client harus menggunakan `session_id` baru untuk request berikutnya.
@@ -480,9 +477,12 @@ Client (localStorage)
 
 Konsekuensinya, `session_id` harus tetap diperlakukan sebagai identifier sensitif (lihat [10.2](#102-session-id)) karena siapa pun yang mengetahui `session_id` dapat mengambil maupun menghapus riwayatnya melalui endpoint terkait, tanpa validasi ownership.
 
+> ⚠️ **Implementasi saat ini:** `chat.js` memanggil `GET /api/sessions/all` (kode berbasis localStorage dikomentari),
+> sehingga sidebar menampilkan **semua** session semua pengguna, bukan hanya milik browser tersebut.
+
 ## 7.5.2 Judul Percakapan
 
-Judul (`title`) diisi otomatis dari potongan pertanyaan pertama user (maksimal 40 karakter) saat session baru dibuat, dan ditampilkan pada sidebar untuk membedakan setiap percakapan.
+Judul (`title`) diisi otomatis dari potongan pertanyaan pertama user (maksimal 40 karakter) saat session baru dibuat, dan ditampilkan pada sidebar untuk membedakan setiap percakapan. Judul diambil dari pertanyaan **mentah** (belum di-anonymize).
 
 ## 7.5.3 Sumber pada Riwayat Pesan
 
@@ -494,11 +494,13 @@ Pesan `user` dan jawaban fallback (`"Informasi tidak ditemukan..."`) tidak memil
 
 ## 7.5.4 Endpoint Terkait
 
-| Endpoint                     | Method | Fungsi                                                  |
-| ------------------------------ | ------ | ---------------------------------------------------------- |
-| `POST /api/sessions`          | POST   | Mengambil metadata sejumlah session (title, waktu) berdasarkan daftar `session_id` yang dikirim client. |
-| `GET /api/sessions/<id>`      | GET    | Mengambil riwayat pesan lengkap satu session untuk ditampilkan ulang di chat window. |
-| `DELETE /api/sessions/<id>`   | DELETE | Menghapus session beserta seluruh riwayat pesannya (cascade). |
+| Endpoint                    | Method | Fungsi                                                          |
+| --------------------------- | ------ | --------------------------------------------------------------- |
+| `POST /api/sessions`        | POST   | Metadata session milik `user_id` (body: `{"user_id": "..."}`)   |
+| `GET /api/sessions/all`     | GET    | Seluruh session terbaru (dipakai sidebar saat ini)              |
+| `POST /api/sessions/search` | POST   | Cari session berdasarkan isi pesan (ILIKE, maks. 200 karakter)  |
+| `GET /api/sessions/<id>`    | GET    | Riwayat pesan satu session (10 pesan terakhir)                  |
+| `DELETE /api/sessions/<id>` | DELETE | Hapus session beserta pesannya (cascade)                        |
 
 Detail request/response tersedia pada [`api-contract.md`](../api-operasional/api-contract.md#sessions-sidebar).
 
@@ -558,7 +560,7 @@ sessions
     │
     │ 1:N
     ▼
-conversation_messages
+session_messages
 ```
 
 Contoh:
@@ -576,17 +578,18 @@ sessions
              │
              │ 1:N
              ▼
-conversation_messages
+session_messages
 ┌─────────────────────────┐
 │ id PK                   │
 │ session_id FK           │
 │ role                    │
 │ content                 │
+│ sources (jsonb)         │
 │ created_at              │
 └─────────────────────────┘
 ```
 
-`conversation_messages.session_id` harus memiliki foreign key ke `sessions.session_id`.
+`session_messages.session_id` harus memiliki foreign key ke `sessions.session_id`.
 
 Index pada `session_id` disarankan untuk mempercepat pengambilan history.
 
@@ -651,6 +654,8 @@ Request tidak boleh mengambil history hanya berdasarkan `user_id` jika `session_
 Application harus melakukan validasi ownership apabila authentication tersedia.
 
 User tidak boleh dapat mengakses session milik user lain hanya dengan mengetahui `session_id`.
+
+`user_id` dan `session_id` berasal dari body request client dan tidak diverifikasi.
 
 ## 10.3 Conversation History
 
@@ -717,6 +722,6 @@ Retention period untuk session dan conversation history mengikuti Compliance Ret
 15. System prompt dikelola oleh application.
 16. Cleanup tidak boleh menghapus session yang masih aktif.
 17. Retention data mengikuti Compliance Retention Policy.
-18. Production menggunakan Database atau Redis.
-19. In-memory storage hanya digunakan untuk development/testing.
+18. Storage menggunakan Supabase (`SupabaseSessionStore`); Database atau Redis diperbolehkan untuk production.
+19. In-memory storage tidak digunakan pada implementasi saat ini (lihat 8.2).
 20. Session ownership harus divalidasi apabila authentication tersedia.

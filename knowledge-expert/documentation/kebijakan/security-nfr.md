@@ -26,3 +26,24 @@ Arsitektur Knowledge Expert mendukung encryption at rest dan TLS in transit sesu
 * MinIO harus menggunakan encryption at rest dengan KMS/SSE.
 * Endpoint MinIO yang diakses melalui network harus menggunakan TLS.
 * Credential dan encryption key disimpan melalui secret management/environment configuration dan tidak disimpan di source code atau repository.
+
+## HTTP Security Headers
+
+Diset pada setiap response (`app.py`):
+
+```text
+X-Content-Type-Options: nosniff
+X-Frame-Options: DENY
+Strict-Transport-Security: max-age=31536000; includeSubDomains
+```
+
+## Konfigurasi TLS MinIO
+
+TLS ke MinIO diaktifkan dengan `MINIO_SECURE=true` (default `false`, hanya untuk development). `MINIO_SECURE=true` wajib di production.
+
+## Catatan Tambahan
+
+* Redis (lock dan rate limit) berjalan di `localhost` tanpa TLS. Isinya hanya counter IP dan lock key.
+* `ensure_bucket()` tidak mengaktifkan SSE, sehingga enkripsi KMS harus dikonfigurasi di MinIO (lihat dokumentasi MinIO KMS/KES).
+* Risiko: tabel `documents` memberi akses penuh ke role `anon` dan `vectorstore.py` memakai publishable key. Rekomendasi: pindah ke `supabase_admin` dan cabut policy tulis `anon`.
+* `/api/sources/download` bersifat publik dan tidak melewati RBAC kategori.

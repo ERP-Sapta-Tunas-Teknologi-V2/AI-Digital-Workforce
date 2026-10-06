@@ -11,7 +11,11 @@
                   Upload        Delete
                     │             │
                     ▼             ▼
-                  MinIO        MinIO
+       Screening (duplikat /    MinIO
+       rahasia / usang)
+                    │
+                    ▼
+                  MinIO
                     │
                     │ Ingest
                     ▼
@@ -43,7 +47,13 @@
                 User Request
                     │
                     ▼
+        Validasi (panjang + injection)
+                    │
+                    ▼
                   Session
+                    │
+                    ▼
+                Anonymizer
                     │
                     ▼
               Contextualizer
@@ -53,6 +63,9 @@
                     │
                     ▼
                Hybrid Search
+                    │
+                    ▼
+        Reranker (Qwen3-Reranker, top 3)
                     │
                     ▼
                  Qwen2.5

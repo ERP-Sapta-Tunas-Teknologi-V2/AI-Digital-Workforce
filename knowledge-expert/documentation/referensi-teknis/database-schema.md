@@ -39,7 +39,7 @@ Menyimpan chunk hasil indexing beserta embedding-nya. Digunakan untuk retrieval 
 | `documents_document_chunk_unique`        | unique index  | `document_id, chunk_index`      | Mencegah duplikasi chunk pada dokumen sama.   |
 | `documents_fts_idx`                      | GIN index     | `fts`                           | Mempercepat full-text search.                 |
 
-**Access control:** RLS aktif, role `anon` diberi akses penuh (`select`, `insert`, `update`, `delete`) melalui policy `Allow insert/select/update/delete documents` — dipakai karena proses ingestion saat ini berjalan dengan Supabase publishable key.
+**Access control:** RLS aktif, role `anon` diberi akses penuh (`select`, `insert`, `update`, `delete`) melalui policy `Allow insert/select/update/delete documents` — dipakai karena proses ingestion saat ini berjalan dengan Supabase publishable key. `vectorstore.py` memakai `supabase_client` (publishable key), sehingga siapa pun yang memegang key tersebut bisa menulis atau menghapus chunk (lihat [`security-nfr.md`](security-nfr.md)).
 
 ---
 
@@ -126,6 +126,9 @@ Melacak status ingest setiap dokumen, termasuk state versioning (khusus kategori
 | `superseded_by`       | text           | Yes      | -           | `document_id` versi baru yang menggantikan baris ini.                        |
 | `superseded_at`       | timestamptz    | Yes      | -           | Waktu baris ditandai `superseded`.                                           |
 | `created_at`          | timestamptz    | Yes      | `now()`     | Waktu baris pertama kali dibuat.                                             |
+| `updated_at`          | timestamptz    | Yes      | `now()`     | Waktu update terakhir; dipakai `reset_stale_processing()` (processing > 15 menit → `failed`). |
+
+Catatan: default `status` di SQL adalah `'pending'`, sedangkan aplikasi memakai `not_ingested/processing/success/failed`.
 
 **Index:**
 
@@ -176,12 +179,12 @@ Mencatat hasil setiap proses ingest (per dokumen), termasuk jumlah chunk yang be
 
 ## `document_flags`
 
-Menyimpan hasil screening dokumen (duplikat, rahasia, usang) yang dijalankan sebelum ingest (lihat [`screening.md`](../kebijakan/screening.md)).
+Menyimpan hasil screening dokumen (duplikat, rahasia, usang) yang dijalankan sebelum ingest; satu dokumen dapat memiliki beberapa flag (lihat [`screening.md`](../kebijakan/screening.md)).
 
 | Column           | Type          | Nullable | Default    | Description                                                                 |
 | ----------------- | -------------- | -------- | ----------- | ---------------------------------------------------------------------------- |
-| `document_id`     | text           | No       | -           | Primary key, dokumen yang diperiksa.                                         |
-| `flag_type`       | text           | No       | -           | `duplicate` / `stale` / `confidential` / `expired` / `clean`.                |
+| `document_id`     | text           | No       | -           | Bagian dari primary key komposit `(document_id, flag_type)`; dokumen yang diperiksa. |
+| `flag_type`       | text           | No       | -           | `duplicate` / `stale` / `confidential` / `expired` / `clean`. Bagian dari primary key komposit. `expired` saat ini tidak pernah dihasilkan kode (hanya `stale`). |
 | `detail`          | text           | Yes      | -           | Detail temuan, mis. pattern yang cocok.                                      |
 | `duplicate_of`    | text           | Yes      | -           | `document_id` lain jika `flag_type = 'duplicate'`.                          |
 | `file_hash`       | text           | Yes      | -           | SHA-256 dari isi file, dipakai untuk deteksi duplikat.                       |
@@ -209,7 +212,7 @@ Menyimpan metadata session percakapan chatbot, menggantikan in-memory store agar
 | `created_at`            | timestamptz | No       | `now()`    | Waktu session dibuat.                                                 |
 | `last_activity_at`      | timestamptz | No       | `now()`    | Waktu aktivitas terakhir, diperbarui setiap request valid.            |
 | `expires_at`            | timestamptz | -        | -          | **Belum diimplementasi** — kolom ini belum ada di `supabase.sql`. Lihat catatan status pada [`session.md`](../kebijakan/session.md#status-implementasi). |
-| `absolute_expires_at`   | timestamptz | -        | -          | **Belum diimplementasi** — sama seperti di atas.  
+| `absolute_expires_at`   | timestamptz | -        | -          | **Belum diimplementasi** — sama seperti di atas. |
 
 **Index:**
 
@@ -263,7 +266,7 @@ hybrid_score = (1 / (rrf_k + rank_fulltext)) * full_text_weight
              + (1 / (rrf_k + rank_semantic)) * semantic_weight
 ```
 
-`category_filter` (array kategori) diterapkan pada kedua sisi (full-text dan semantic) sebelum fusion, sehingga chunk dari kategori yang tidak diizinkan tidak pernah ikut proses scoring — mendukung RBAC content filtering (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)). Mengembalikan `id`, `content`, `metadata`, `chunk_index`, `embedding`, `hybrid_score`.
+`category_filter` (array kategori) diterapkan pada kedua sisi (full-text dan semantic) sebelum fusion, sehingga chunk dari kategori yang tidak diizinkan tidak pernah ikut proses scoring — mendukung RBAC content filtering (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)). Mengembalikan `id`, `content`, `metadata`, `chunk_index`, `embedding`, `hybrid_score`, `rank_fulltext`, `rank_semantic`. Setiap cabang (full-text/semantic) dibatasi `least(match_count, 30) * 2` kandidat sebelum fusion.
 
 ### `delete_expired_interaction_logs()`
 
@@ -289,6 +292,10 @@ Menggabungkan `interaction_logs` dan `response_feedback` untuk mencari jawaban d
 
 Meng-unnest array `sources` pada setiap `interaction_logs` yang memiliki feedback, mengelompokkan berdasarkan `source` dan `chunk_index`, lalu menghitung `flagged_count` (jumlah downvote), `total_referenced_count` (total kemunculan pada jawaban berfeedback), dan `flag_ratio` (`flagged_count / total_referenced_count`, dibulatkan 2 desimal). Hanya menampilkan kombinasi yang punya minimal 1 downvote. Digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi, dipakai oleh endpoint `GET /api/analytics/flagged-documents`.
 
+### `get_dashboard_summary(days default 30)`
+
+`security definer`. Mengembalikan satu baris: `query_volume` (jsonb `[{date,total}]`, per hari), `total_queries`, `total_feedback`, `positive_feedback_rate` (%), dan `top_referenced_documents` (jsonb, maks. 10). Dipakai `GET /api/analytics/dashboard-summary`. Akses: `service_role`.
+
 ---
 
 ## Ringkasan Function
@@ -302,3 +309,4 @@ Meng-unnest array `sources` pada setiap `interaction_logs` yang memiliki feedbac
 | `get_ingestion_report()`                | (belum ada endpoint API)                      | service_role saja        |
 | `get_problematic_answers()`             | `GET /api/analytics/problematic-answers`      | service_role saja        |
 | `get_flagged_documents()`               | `GET /api/analytics/flagged-documents`        | service_role saja        |
+| `get_dashboard_summary()`               | `GET /api/analytics/dashboard-summary`        | service_role saja        |

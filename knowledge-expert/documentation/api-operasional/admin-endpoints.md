@@ -8,6 +8,8 @@ Akses endpoint dibatasi untuk role:
 Admin
 ```
 
+> ⚠️ `@require_role("Admin")` saat ini dikomentari pada seluruh endpoint di `admin.py`.
+
 ## Upload Dokumen
 
 ```http
@@ -22,25 +24,35 @@ Form fields:
 | `file`     | ya       | File yang diupload                            |
 | `category` | ya       | Salah satu dari kategori di [Sync satu category](#sync-satu-category) |
 | `replace`  | tidak    | `true` untuk menimpa file yang sudah ada      |
-| `supersedes` | tidak  | Khusus kategori **Pricelist**: nama file lama yang digantikan versi baru ini (Skenario B pada [`versioning.md`](../kebijakan/versioning.md)) |
+| `supersedes` | tidak  | Khusus kategori **Pricelist**: nama file lama yang digantikan versi baru ini (Cara 2, lihat [`versioning.md`](../kebijakan/versioning.md)) |
+
+Jika file dengan nama yang sama sudah ada dan `replace` bukan `true`, response `409 Conflict`:
+
+```json
+{
+  "exists": true,
+  "message": "File 'example.pdf' already exists in category 'datasheet'. Replace it?"
+}
+```
 
 Untuk kategori pada `VERSIONED_CATEGORIES` (saat ini: `pricelist`), upload menjalankan deteksi versi otomatis:
 
-- **Nama file sama + `replace=true`**: file lama diarsipkan (`_archive/`), status lama ditandai `superseded`.
-- **Nama file berbeda + `supersedes` diisi**: dokumen yang disebutkan di `supersedes` ditandai `superseded`, vector lama dihapus.
-- **Nama file berbeda + `supersedes` kosong**: jika hanya ada satu versi aktif di kategori tsb, otomatis dijadikan `superseded`. Jika lebih dari satu, request ditolak `409` dengan daftar `active_versions`.
+- **Nama file sama + `replace=true`** (Cara 1): file lama dipindah ke `{category}/_archive/{timestamp}_{filename}`; row status lama disalin sebagai `{category}:_archive_{timestamp}_{stem}` (mis. `pricelist:_archive_20260911151203_cisco`) dan ditandai `superseded`; row asli dihapus.
+- **Nama file berbeda + `supersedes`** (Cara 2, eksplisit): vector lama dihapus, status lama `superseded`.
+- **Nama file berbeda tanpa `supersedes`**: satu versi aktif → otomatis `superseded`; lebih dari satu → `409` + `active_versions`.
+
+Untuk kategori non-versioned, `replace=true` hanya menimpa file di MinIO. Vector dan status lama tetap ada sampai dokumen di-ingest ulang.
 
 Jika berhasil:
 
 ```json
- {
-   "message": "File uploaded successfully",
-   "category": "datasheet",
--  "filename": "example.pdf"
-+  "filename": "example.pdf",
-+  "document_id": "datasheet:example",
-+  "superseded": null
- }
+{
+  "message": "File uploaded successfully",
+  "category": "datasheet",
+  "filename": "example.pdf",
+  "document_id": "datasheet:example",
+  "superseded": null
+}
 ```
 
 Jika dokumen di-flag saat screening (lihat [`screening.md`](../kebijakan/screening.md)), response `200 OK` (bukan `201`):
@@ -52,6 +64,8 @@ Jika dokumen di-flag saat screening (lihat [`screening.md`](../kebijakan/screeni
   "message": "File di-upload tetapi review diperlukan sebelum di-ingest karena \"...\"."
 }
 ```
+
+Jika dokumen ter-flag, file tetap tersimpan dan proses versioning sudah dijalankan sebelum response `200 warning` dikirim.
 
 Jika ditemukan lebih dari satu versi aktif pada kategori bervariasi tanpa `supersedes` eksplisit:
 
@@ -86,7 +100,11 @@ Response menampilkan setiap file beserta waktu upload dan status ingest, dalam z
     "ingest_status": "success",
     "last_ingested_at": "2026-09-08T02:35:00+00:00",
     "last_ingested_at_wib": "2026-09-08 09:35:00 WIB",
-    "size": 245678
+    "size": 245678,
+    "version_status": "active",
+    "superseded_by": null,
+    "is_archived": false,
+    "flags": [{"type": "stale", "detail": "matched pattern: \\bdraft\\b", "duplicate_of": null}]
   }
 ]
 ```
@@ -102,9 +120,9 @@ failed
 
 `ingest_status` diambil dari tabel `document_status` dan dicocokkan berdasarkan `document_id`.
 
-## Ingest Endpoint
+Endpoint ini juga menjalankan `reset_stale_processing()`: status `processing` yang lebih dari 15 menit diubah ke `failed`.
 
-Digunakan setelah dokumen sudah tersimpan di sistem, misalnya melalui proses upload terpisah.
+## Ingest Endpoint
 
 ```http
 POST /api/admin/ingest
@@ -144,6 +162,16 @@ Jika ingest untuk file yang sama sedang berjalan, request akan ditolak dengan:
 ```
 
 Status code: `409 Conflict`.
+
+Jika dokumen di-flag `duplicate` atau `confidential` pada screening (lihat [`screening.md`](../kebijakan/screening.md)), ingest diblokir:
+
+```json
+{
+  "error": "document flagged as ['duplicate'], ingest blocked pending review"
+}
+```
+
+Status code: `409 Conflict`. Saat ini tidak ada endpoint override; flag dihapus dengan upload ulang atau dengan menghapus dokumen.
 
 ## Un-ingest Endpoint
 
@@ -297,11 +325,7 @@ Kirim body kosong:
 {}
 ```
 
-Proses akan melakukan sync terhadap:
-
-```text
-documents/
-```
+Sync membandingkan objek di bucket MinIO per kategori dengan `documents` di Supabase. Yang dilewati: file di `_archive/`, dokumen `superseded`, dan dokumen yang di-flag `duplicate`/`confidential` (log: `[SYNC] SKIPPED (flagged)`).
 
 Response:
 

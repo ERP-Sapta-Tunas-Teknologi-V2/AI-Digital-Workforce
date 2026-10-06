@@ -10,6 +10,18 @@ Dashboard tersedia pada:
 
 Frontend dashboard menggunakan Vanilla HTML, CSS, dan JavaScript.
 
+Dashboard memiliki 5 halaman:
+
+| Menu               | Fungsi                                                                 |
+| ------------------ | ---------------------------------------------------------------------- |
+| Ringkasan          | Total pertanyaan, total feedback, % feedback positif, grafik volume, dokumen paling sering dirujuk (`dashboard-summary`) |
+| Dokumen            | Upload, ingest, un-ingest, unduh, hapus, Sync Semua                    |
+| Top FAQ            | `GET /api/logs/top-faq` (rentang 7/30/90 hari, jumlah 5/10/20)         |
+| Jawaban Bermasalah | `GET /api/analytics/problematic-answers` (min. downvote 1–3)           |
+| Dokumen Ditandai   | `GET /api/analytics/flagged-documents`                                 |
+
+Tombol **Ekspor Log CSV** tersedia di topbar (`GET /api/logs/export`).
+
 ## Upload Dokumen
 
 User dapat:
@@ -46,21 +58,24 @@ datasheet
 sow
 ```
 
-Jika file dengan nama dan category yang sama sudah ada di MinIO, dashboard meminta konfirmasi sebelum melakukan replace.
+Jika file sudah ada, server membalas `409`. User harus mencentang **Ganti jika sudah ada** lalu upload ulang. Dashboard belum mengirim parameter `supersedes` (khusus Pricelist dengan banyak versi aktif, gunakan API langsung).
 
 ## Daftar Dokumen
 
 Dashboard menampilkan:
 
 ```text
-Filename
-Category
-Size
-Upload time
-Ingest status
-Last ingest time
-Action
+Nama File
+Kategori
+Status
+Versi
+Flags
+Diunggah
+Terakhir Ingest
+Aksi
 ```
+
+Aksi: Ingest, Un-ingest, Unduh, Hapus. Status tambahan: `superseded`. Badge `arsip` ditampilkan untuk file di `_archive/`.
 
 Waktu ditampilkan dalam zona waktu:
 
@@ -135,7 +150,7 @@ processing
 failed
 ```
 
-Dashboard melakukan refresh status secara berkala sehingga perubahan status ingest dapat terlihat tanpa menjalankan command manual.
+Dashboard me-refresh daftar sekali ±1,5 detik setelah ingest dimulai. Tidak ada polling; status selanjutnya (`success`/`failed`) dilihat dengan membuka ulang halaman Dokumen atau mengganti filter/tab.
 
 ## Un-ingest Dokumen
 
@@ -189,27 +204,21 @@ Dengan demikian tidak terdapat dokumen vector yang berasal dari file yang sudah 
 
 ## Replace Dokumen
 
-Jika user mengupload file dengan nama yang sama pada category yang sama, dashboard akan meminta konfirmasi replace.
+Jika user mengupload file dengan nama yang sama pada category yang sama dengan opsi **Ganti jika sudah ada**:
 
-Proses replace harus menghapus hasil indexing lama sebelum file baru digunakan:
+**Non-versioned (semua kategori selain Pricelist):**
 
 ```text
-Existing file
+Upload dengan "Ganti jika sudah ada"
       ↓
-Delete old vectors
+File di MinIO ditimpa
       ↓
-Delete old document status
-      ↓
-Replace file in MinIO
-      ↓
-not_ingested
-      ↓
-Ingest new file
+Screening dijalankan ulang
 ```
 
-Hal ini mencegah vector dari versi lama dan versi baru berada bersamaan di vector database.
+Vector dan status lama **tidak** dihapus. Chatbot tetap memakai isi lama sampai admin menekan **Ingest** (chunk yang fingerprint-nya sama dilewati, chunk usang dihapus), dan status tetap `success` sampai saat itu.
 
-Untuk kategori **Pricelist**, replace dan versioning mengikuti aturan khusus — lihat [`versioning.md`](../kebijakan/versioning.md).
+**Pricelist:** replace dan versioning mengikuti aturan khusus — lihat [`versioning.md`](../kebijakan/versioning.md).
 
 ## Endpoint Dashboard
 
@@ -220,12 +229,16 @@ Untuk kategori **Pricelist**, replace dan versioning mengikuti aturan khusus —
 | `POST`   | `/api/admin/ingest`           | Ingest dokumen                    |
 | `POST`   | `/api/admin/un-ingest`        | Menghapus hasil indexing          |
 | `DELETE` | `/api/admin/documents/delete` | Menghapus file dan hasil indexing |
+| `GET`    | `/api/admin/documents/download` | Mengunduh file sumber           |
+| `POST`   | `/api/admin/sync`             | Sinkronisasi (tombol "Sync Semua") |
 
 Semua endpoint membutuhkan role:
 
 ```text
 Admin
 ```
+
+> ⚠️ Dashboard saat ini mengirim `X-User-Role: Admin` secara hardcode (`ADMIN_ROLE_HEADER` di `dashboard.js`, ada TODO di kode).
 
 Detail request/response setiap endpoint di atas tersedia pada [`admin-endpoints.md`](admin-endpoints.md).
 

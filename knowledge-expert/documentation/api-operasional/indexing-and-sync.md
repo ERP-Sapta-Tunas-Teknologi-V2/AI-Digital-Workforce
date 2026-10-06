@@ -27,13 +27,31 @@ BGE-M3
 Supabase
 ```
 
-Untuk melakukan indexing:
+Alur preprocessing per format:
+
+| Format | Alur |
+| ------ | ---- |
+| `.pdf`  | pymupdf4llm → Markdown per halaman → Docling |
+| `.docx` | LibreOffice (headless) → PDF → pymupdf4llm → Docling |
+| `.pptx` | python-pptx (teks per slide) → Docling |
+| `.xlsx` | Docling langsung (tanpa Markdown) |
+
+Setelah chunking: Fingerprint → BGE-M3 → Supabase/pgvector.
+
+Untuk melakukan indexing manual satu file:
 
 ```bash
-python ingest.py
+python ingest.py <category> <filename>
+# contoh: python ingest.py datasheet example.pdf
 ```
 
-Gunakan proses ini untuk indexing dokumen secara manual.
+File harus sudah ada di MinIO pada `{category}/{filename}`.
+
+Catatan:
+
+* Saat chunking, teks yang cocok `INJECTION_PATTERNS` diganti `[REDACTED]`. Pola longgar seperti `act as`, `pretend`, `disregard` bisa mengubah isi dokumen teknis yang sah.
+* `document_id = {category}:{nama_tanpa_ekstensi}`. `a.pdf` dan `a.docx` di kategori yang sama **bertabrakan**.
+* Ekstraksi gambar (`describe_image`) saat ini dinonaktifkan (dikomentari di `cleaner.py`).
 
 Untuk indexing dokumen individual yang sudah tersimpan di MinIO, gunakan endpoint `/api/admin/ingest` (lihat [`admin-endpoints.md`](admin-endpoints.md)) atau Dashboard Dokumen (lihat [`dashboard.md`](dashboard.md)).
 

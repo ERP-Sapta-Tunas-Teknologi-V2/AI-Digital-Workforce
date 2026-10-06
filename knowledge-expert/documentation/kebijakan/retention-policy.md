@@ -1,5 +1,11 @@
 # Data Retention Policy — Session, Interaction & Feedback
 
+> ⚠️ **Status implementasi:**
+> - Session expiry/cleanup belum berjalan: kolom `expires_at`/`absolute_expires_at` belum ada, `SupabaseSessionStore.cleanup()` masih stub (`return 0`). Lihat `session.md`.
+> - `sync/retention.py` hanya menjalankan `delete_expired_interaction_logs()` bila dipanggil. Belum ada scheduler
+>   (cron/systemd timer) yang terdokumentasi. Tambahkan, mis. `0 2 * * * cd /opt/AI-Digital-Workforce && .venv/bin/python -m sync.retention >> log/retention.log 2>&1`.
+> - File `log/*.txt` belum memiliki log rotation.
+
 ## 1. Objective
 
 Kebijakan ini mengatur periode penyimpanan, penggunaan, akses, dan penghapusan data yang dihasilkan oleh chatbot, termasuk:
@@ -88,7 +94,7 @@ System menyimpan data berikut pada `public.interaction_logs`:
 * `query` — query user yang telah melalui anonymization.
 * `answer` — jawaban chatbot untuk request tersebut.
 * `sources` — metadata dokumen/chunk yang dirujuk untuk menghasilkan jawaban (document_id, category, section_title, dll).
-* `fallback` — penanda apakah jawaban merupakan fallback (tidak ditemukan informasi relevan).
+* `status` — `started` | `completed` | `fallback` | `failed` (menggantikan penanda `fallback`).
 * `timestamp` — waktu query diterima.
 * `anon_id` — anonymous identifier.
 
@@ -106,7 +112,7 @@ Retention `interaction_logs` mengikuti dua tingkat, tergantung apakah baris ters
 Alasan retensi bertingkat:
 
 * Baris tanpa feedback tidak memiliki nilai analitik tambahan setelah 30 hari, sehingga tetap mengikuti prinsip minimisasi data.
-* Baris dengan feedback dibutuhkan lebih lama untuk mendukung analisis tren kualitas jawaban dan identifikasi dokumen bermasalah (lihat [Analytics Endpoints](#12-relasi-dengan-analytics) pada bagian selanjutnya), yang memerlukan horizon waktu lebih dari 30 hari agar keputusan revisi dokumen tidak terpotong prematur oleh penghapusan data.
+* Baris dengan feedback dibutuhkan lebih lama untuk mendukung analisis tren kualitas jawaban dan identifikasi dokumen bermasalah (lihat [Analytics Endpoints](#9-relasi-dengan-analytics) pada bagian selanjutnya), yang memerlukan horizon waktu lebih dari 30 hari agar keputusan revisi dokumen tidak terpotong prematur oleh penghapusan data.
 
 Setelah melewati periode retensi yang berlaku, baris harus dihapus secara otomatis.
 
@@ -162,6 +168,8 @@ Application log juga tidak boleh mencatat raw query apabila query tersebut dapat
 Mekanisme anonymization harus direview secara berkala karena pattern-based anonymization tidak menjamin seluruh kemungkinan PII dapat terdeteksi.
 
 Jawaban chatbot (`answer`) dihasilkan dari knowledge base internal dan tidak diharapkan memuat PII pengguna, namun tetap tunduk pada retensi bertingkat yang sama dengan baris `interaction_logs` yang menyimpannya.
+
+`response_feedback.reason` (teks bebas) dan `sessions.title` saat ini **tidak** di-anonymize. Debug `print` di `routes/chat.py` (RAW BODY, JSON, history) dan `retriever.py` mencetak query mentah ke stdout; ini bertentangan dengan aturan application log di atas dan perlu dihapus sebelum production.
 
 ---
 
@@ -267,7 +275,7 @@ Retensi bertingkat pada `interaction_logs` dan `response_feedback` secara langsu
 * **Identifikasi jawaban bermasalah** — memerlukan `interaction_logs.answer` dan `interaction_logs.sources` tetap tersedia selama periode retensi yang berlaku agar dapat dikorelasikan dengan `response_feedback.rating` dan `response_feedback.reason`.
 * **Identifikasi dokumen/chunk yang perlu direvisi** — memerlukan `interaction_logs.sources` yang memuat metadata dokumen (document_id, category) tetap tersedia untuk periode yang cukup panjang agar tren downvote per dokumen dapat diamati.
 
-Jika horizon retensi 90 hari dianggap tidak cukup untuk kebutuhan bisnis di masa depan, perubahan periode ini harus melalui review kebijakan (lihat [Policy Review](#14-policy-review)), bukan diubah secara ad-hoc pada kode aplikasi.
+Jika horizon retensi 90 hari dianggap tidak cukup untuk kebutuhan bisnis di masa depan, perubahan periode ini harus melalui review kebijakan (lihat [Policy Review](#15-policy-review)), bukan diubah secara ad-hoc pada kode aplikasi.
 
 ---
 

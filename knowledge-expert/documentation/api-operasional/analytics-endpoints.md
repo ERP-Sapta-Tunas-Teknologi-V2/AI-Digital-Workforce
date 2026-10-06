@@ -2,7 +2,7 @@
 
 Selain log export (lihat [`admin-endpoints.md`](admin-endpoints.md#log-export)), tersedia endpoint analytics tambahan untuk kebutuhan reporting.
 
-Akses dibatasi untuk role `Admin`.
+Akses dibatasi untuk role `Admin` (**saat ini decorator `require_role` nonaktif**, lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)).
 
 ## Top FAQ
 
@@ -31,7 +31,7 @@ Mengembalikan daftar jawaban dengan feedback negatif (downvote) terbanyak dalam 
 GET /api/analytics/flagged-documents?days=30&limit=20
 ```
 
-Mengembalikan daftar dokumen yang paling sering dirujuk pada jawaban yang mendapat downvote, beserta rasio downvote terhadap total kemunculan dokumen tersebut pada jawaban berfeedback. Digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi.
+Mengembalikan daftar dokumen (dikelompokkan per `source` dan `chunk_index`) yang paling sering dirujuk pada jawaban yang mendapat downvote, beserta rasio downvote terhadap total kemunculan dokumen tersebut pada jawaban berfeedback. Digunakan untuk mengidentifikasi dokumen yang berpotensi perlu direvisi.
 
 ## Dashboard Summary
 
@@ -54,5 +54,7 @@ Field utama pada response:
 | `total_feedback`           | Total feedback yang diberikan                       |
 | `positive_feedback_rate`   | Persentase feedback positif (`up`)                  |
 | `top_referenced_documents` | Daftar hingga 10 dokumen yang paling sering dirujuk |
+
+Response berupa satu objek JSON; `query_volume` berisi `[{date,total}]`; `top_referenced_documents` berisi `[{source,category,referenced_count}]`.
 
 Detail lengkap request/response setiap endpoint di atas tersedia pada [`api-contract.md`](api-contract.md).

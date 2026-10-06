@@ -22,10 +22,17 @@ Area yang perlu diuji:
 
 ```text
 API validation
+Prompt injection validation
 Retrieval
-Session
-Rate limiting
+RBAC retrieval filter
+Session & sidebar
+Rate limiting (termasuk /api/rate-limit-test)
 CORS
 Anonymization
 Log export
+Feedback
+Admin endpoints
+Document screening (duplicate / confidential)
+Versioning (Pricelist)
+Retention cleanup
 ```
