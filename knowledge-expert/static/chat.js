@@ -13,6 +13,10 @@ const charCountEl = document.getElementById("char-count");
 const sessionListEl = document.getElementById("session-list");
 const sessionSearchEl = document.getElementById("session-search");
 
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}[c]));
+
 questionEl.addEventListener("input", () => {
     charCountEl.textContent = `${questionEl.value.length} / ${MAX_LEN}`;
     questionEl.style.height = "auto";
@@ -60,9 +64,9 @@ function renderSources(container, sources) {
     const wrap = document.createElement("div");
     wrap.className = "sources";
     sources.forEach(s => {
-        const chip = document.createElement("div");
-        chip.className = "source-chip";
-        chip.innerHTML = `<b>[${s.citation}]</b> ${s.source || "-"} ${s.page ? "· hlm. " + (Array.isArray(s.page)?s.page.join(","):s.page) : ""} ${s.category ? "· " + s.category : ""}`;
+        const page = s.page ? "· hlm. " + (Array.isArray(s.page) ? s.page.join(",") : s.page) : "";
+        const category = s.category ? "· " + s.category : "";
+        chip.innerHTML = `<b>[${esc(s.citation)}]</b> ${esc(s.source || "-")} ${esc(page)} ${esc(category)}`;
         wrap.appendChild(chip);
     });
     container.appendChild(wrap);
@@ -175,7 +179,7 @@ async function loadSessionList() {
             const item = document.createElement("div");
             item.className = "session-item" + (s.session_id === sessionId ? " active" : "");
             item.dataset.id = s.session_id;
-            item.innerHTML = `<span class="session-title">${s.title || "Percakapan baru"}</span><button class="del-btn" title="Hapus">✕</button>`;
+            item.innerHTML = `<span class="session-title">${esc(s.title || "Percakapan baru")}</span><button class="del-btn" title="Hapus">✕</button>`;
             item.querySelector(".session-title").addEventListener("click", () => openSession(s.session_id));
             item.querySelector(".del-btn").addEventListener("click", (e) => {
                 e.stopPropagation();
@@ -274,6 +278,16 @@ async function sendMessage() {
             addMessage("bot", "Request gagal diproses.");
             isStreaming = false;
             sendBtn.disabled = false;
+            return;
+        }
+
+        if ((res.headers.get("content-type") || "").includes("application/json")) {
+            const data = await res.json();
+            typingRow.remove();
+            saveSessionId(data.session_id);
+            const { row } = addMessage("bot", data.answer);
+            if (data.request_id) renderFeedback(row, data.request_id);
+            loadSessionList();
             return;
         }
 
@@ -383,7 +397,7 @@ function renderSearchResults(results) {
         const item = document.createElement("div");
         item.className = "session-item";
         item.dataset.id = r.session_id;
-        item.innerHTML = `<span>${r.title || "Percakapan"}<br><small>${r.snippet}</small></span>`;
+        item.innerHTML = `<span>${esc(r.title || "Percakapan")}<br><small>${esc(r.snippet)}</small></span>`;
         item.querySelector("span").addEventListener("click", () => openSession(r.session_id));
         sessionListEl.appendChild(item);
     });

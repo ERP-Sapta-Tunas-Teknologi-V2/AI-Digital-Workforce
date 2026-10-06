@@ -73,7 +73,7 @@ def hybrid_retrieve(
 
     safe_query = anonymize_query(question)
 
-    with open("log/log_retrieval-docs.txt", "w", encoding="utf-8") as f:
+    with open("log/log_retrieval-docs.txt", "a", encoding="utf-8") as f:
         f.write(f"\n\n=== REQUEST {request_id} ===\nQUESTION: {safe_query}\n")
 
     for row in result.data or []:

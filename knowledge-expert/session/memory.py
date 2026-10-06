@@ -58,7 +58,7 @@ class SupabaseSessionStore:
 
         return True
 
-    def get_messages(self, session_id, limit=10):
+    def get_messages(self, session_id, limit=1000):
         if not self.get(session_id):
             return []
 

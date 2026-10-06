@@ -1,8 +1,10 @@
-from flask import Flask, send_from_directory, jsonify
-from flask_cors import CORS
+import os
+import time
 import redis
 import requests
-import time
+from flask import Flask, send_from_directory, jsonify
+from flask_cors import CORS
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from utils.extensions import limiter
 from utils.minio_client import ensure_bucket, client
@@ -49,11 +51,14 @@ def check_services():
     return True
 
 def create_app():
+    os.makedirs("log", exist_ok=True)
+
     while not check_services():
         print("[RETRY] Services belum siap. Coba lagi dalam 5 detik...", flush=True)
         time.sleep(5)
 
     app = Flask(__name__)
+    app.wsgi_app = ProxyFix(app.wsgi_app, x_for=1)
     limiter.init_app(app)
     CORS(app, resources={r"/api/*": {"origins": ALLOWED_ORIGINS}})
 

@@ -55,12 +55,7 @@ def chat():
     request_id = uuid.uuid4().hex[:8]
     request_start = time.perf_counter()
 
-    print("CONTENT TYPE:", request.content_type)
-    print("RAW BODY:", request.get_data(as_text=True))
-    print("JSON:", request.get_json(silent=True))
-
     data = request.get_json(silent=True)
-
     role = request.headers.get("X-User-Role")
 
     if data is None:
@@ -78,17 +73,17 @@ def chat():
 
     question = " ".join(question.split())
 
+    safe_query = anonymize_query(question)
+    anon_id = uuid.uuid4()
+
     session, is_new = session_manager.get_or_create(session_id, user_id)
     session_id = session["session_id"]
 
     if is_new:
-        title = question[:40] + ("..." if len(question) > 40 else "")
+        title = safe_query[:40] + ("..." if len(question) > 40 else "")
         session_manager.set_title(session_id, title)
 
     history = session_manager.get_history(session_id)
-
-    safe_query = anonymize_query(question)
-    anon_id = uuid.uuid4()
 
     if history:
         contextual_question = contextualize_question(safe_query, history)
@@ -216,16 +211,8 @@ def chat():
         with open("log/log_time.txt", "a", encoding="utf-8") as f:
             f.write(log)
 
-        yield f"data: {json.dumps({
-            'type': 'answer',
-            'content': answer
-        }, ensure_ascii=False)}\n\n"
-
-        yield f"data: {json.dumps({
-            'type': 'sources',
-            'sources': used_sources
-        }, ensure_ascii=False)}\n\n"
-
+        yield f"data: {json.dumps({'type': 'answer', 'content': answer}, ensure_ascii=False)}\n\n"
+        yield f"data: {json.dumps({'type': 'sources', 'sources': stored_sources}, ensure_ascii=False)}\n\n"
         yield 'data: {"type":"done"}\n\n'
 
     return Response(

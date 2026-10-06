@@ -41,6 +41,11 @@ function fmtDateTime(value) {
     });
 }
 
+// Escape HTML agar nilai dinamis tampil sebagai teks, bukan dieksekusi (anti-XSS)
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({
+    "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
+}[c]));
+
 async function apiGet(url, headers = {}) {
     const res = await fetch(url, { headers });
     if (!res.ok) throw new Error(`GET ${url} failed: ${res.status}`);
@@ -120,8 +125,8 @@ function renderVolumeChart(volume) {
         col.className = "bar-col";
         const heightPct = Math.max((v.total / max) * 100, 2);
         col.innerHTML = `
-            <div class="bar" style="height:${heightPct}%" title="${v.total} pertanyaan"></div>
-            <span class="bar-label">${new Date(v.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" })}</span>
+            <div class="bar" style="height:${heightPct}%" title="${esc(v.total)} pertanyaan"></div>
+            <span class="bar-label">${esc(new Date(v.date).toLocaleDateString("id-ID", { day: "2-digit", month: "short" }))}</span>
         `;
         el.appendChild(col);
     });
@@ -136,7 +141,7 @@ function renderTopDocs(docs) {
     }
     docs.forEach(d => {
         const tr = document.createElement("tr");
-        tr.innerHTML = `<td>${d.source}</td><td>${d.category || "-"}</td><td>${fmtNumber(d.referenced_count)}</td>`;
+        tr.innerHTML = `<td>${esc(d.source)}</td><td>${esc(d.category || "-")}</td><td>${fmtNumber(d.referenced_count)}</td>`;
         body.appendChild(tr);
     });
 }
@@ -147,7 +152,7 @@ document.getElementById("overview-days").addEventListener("change", loadOverview
 
 async function loadDocuments() {
     const category = document.getElementById("doc-category-filter").value;
-    const url = category ? `${ADMIN_BASE}/documents?category=${category}` : `${ADMIN_BASE}/documents`;
+    const url = category ? `${ADMIN_BASE}/documents?category=${encodeURIComponent(category)}` : `${ADMIN_BASE}/documents`;
     const body = document.getElementById("documents-body");
     body.innerHTML = `<tr><td colspan="8" class="empty-state">Memuat...</td></tr>`;
 
@@ -163,19 +168,20 @@ async function loadDocuments() {
         files.forEach(f => {
             const tr = document.createElement("tr");
             const flagsHtml = (f.flags || [])
-                .map(fl => `<span class="flag-tag" title="${fl.detail || ""}">${fl.type}</span>`)
+                .map(fl => `<span class="flag-tag" title="${esc(fl.detail || "")}">${esc(fl.type)}</span>`)
                 .join("");
 
             const statusClass = f.version_status === "superseded" ? "superseded" : (f.ingest_status || "not_ingested");
+            const statusLabel = f.version_status === "superseded" ? "superseded" : f.ingest_status;
 
             tr.innerHTML = `
-                <td>${f.filename}${f.is_archived ? ' <span class="badge">arsip</span>' : ""}</td>
-                <td>${f.category}</td>
-                <td><span class="badge ${statusClass}">${f.version_status === "superseded" ? "superseded" : f.ingest_status}</span></td>
-                <td>${f.version_status || "-"}</td>
+                <td>${esc(f.filename)}${f.is_archived ? ' <span class="badge">arsip</span>' : ""}</td>
+                <td>${esc(f.category)}</td>
+                <td><span class="badge ${esc(statusClass)}">${esc(statusLabel)}</span></td>
+                <td>${esc(f.version_status || "-")}</td>
                 <td>${flagsHtml || "-"}</td>
-                <td>${fmtDateTime(f.uploaded_at_wib || f.uploaded_at)}</td>
-                <td>${fmtDateTime(f.last_ingested_at_wib || f.last_ingested_at)}</td>
+                <td>${esc(fmtDateTime(f.uploaded_at_wib || f.uploaded_at))}</td>
+                <td>${esc(fmtDateTime(f.last_ingested_at_wib || f.last_ingested_at))}</td>
                 <td class="row-actions"></td>
             `;
 
@@ -404,9 +410,9 @@ async function loadFaq() {
             const tr = document.createElement("tr");
             tr.innerHTML = `
                 <td>${i + 1}</td>
-                <td>${row.query}</td>
+                <td>${esc(row.query)}</td>
                 <td>${fmtNumber(row.total_queries)}</td>
-                <td>${fmtDateTime(row.last_asked)}</td>
+                <td>${esc(fmtDateTime(row.last_asked))}</td>
             `;
             body.appendChild(tr);
         });
@@ -444,14 +450,14 @@ async function loadProblematicAnswers() {
             card.className = "qa-card";
             const reasons = (item.reasons || []).filter(Boolean);
             card.innerHTML = `
-                <div class="qa-question">${item.question}</div>
-                <div class="qa-answer">${item.answer || "-"}</div>
+                <div class="qa-question">${esc(item.question)}</div>
+                <div class="qa-answer">${esc(item.answer || "-")}</div>
                 <div class="qa-meta">
-                    <span>👍 ${item.upvotes}</span>
-                    <span>👎 ${item.downvotes}</span>
-                    <span>${fmtDateTime(item.last_feedback_at)}</span>
+                    <span>👍 ${fmtNumber(item.upvotes)}</span>
+                    <span>👎 ${fmtNumber(item.downvotes)}</span>
+                    <span>${esc(fmtDateTime(item.last_feedback_at))}</span>
                 </div>
-                ${reasons.length ? `<div class="qa-reasons">${reasons.map(r => `<div class="qa-reason">${r}</div>`).join("")}</div>` : ""}
+                ${reasons.length ? `<div class="qa-reasons">${reasons.map(r => `<div class="qa-reason">${esc(r)}</div>`).join("")}</div>` : ""}
             `;
             list.appendChild(card);
         });
@@ -483,11 +489,11 @@ async function loadFlaggedDocuments() {
         data.forEach(row => {
             const tr = document.createElement("tr");
             tr.innerHTML = `
-                <td>${row.source}</td>
-                <td>${row.chunk_index}</td>
+                <td>${esc(row.source)}</td>
+                <td>${fmtNumber(row.chunk_index)}</td>
                 <td>${fmtNumber(row.flagged_count)}</td>
                 <td>${fmtNumber(row.total_referenced_count)}</td>
-                <td>${row.flag_ratio}</td>
+                <td>${esc(row.flag_ratio)}</td>
             `;
             body.appendChild(tr);
         });

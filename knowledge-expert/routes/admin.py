@@ -6,7 +6,7 @@ from utils.permissions import require_role
 from utils.locks import try_acquire, release
 from utils.minio_client import file_exists, upload_file, list_files, delete_file, download_file, archive_file
 from utils.status_tracker import get_all_statuses, delete_status, get_active_version, supersede_status, reset_stale_processing
-from utils.doc_screening import screen_document, find_duplicate, extract_text_sample
+from utils.doc_screening import screen_document, extract_text_sample, clear_flags
 from utils.supabase_admin import supabase
 from ingestion.indexer import index_document, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
 from ingestion.vectorstore import delete_document as delete_vectors
@@ -88,8 +88,7 @@ def ingest():
 
     if blocking:
         return jsonify({
-            "error": f"document flagged as {blocking}, ingest blocked pending review",
-            "hint": "gunakan endpoint override jika ingin memaksa ingest"
+            "error": f"document flagged as {blocking}, ingest blocked pending review"
         }), 409
 
     lock_key = f"ingest:{category}/{filename}"
@@ -309,6 +308,9 @@ def delete_document_endpoint():
 
         # Hapus status ingest
         delete_status(document_id)
+
+        # Hapus flag screening
+        clear_flags(document_id)
 
         # Hapus file MinIO
         delete_file(category, filename)

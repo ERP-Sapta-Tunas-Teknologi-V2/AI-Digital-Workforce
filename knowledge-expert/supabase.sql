@@ -328,6 +328,8 @@ create index if not exists idx_document_flags_type on public.document_flags(flag
 grant select, insert, update, delete on public.document_flags to service_role;
 
 alter table public.document_flags enable row level security;
+alter table public.document_flags drop constraint document_flags_pkey;
+alter table public.document_flags add primary key (document_id, flag_type);
 
 create policy "Allow service_role all on document_flags" on public.document_flags for all
 to service_role using (true) with check (true);

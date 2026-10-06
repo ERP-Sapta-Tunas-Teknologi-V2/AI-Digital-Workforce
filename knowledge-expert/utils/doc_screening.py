@@ -86,7 +86,7 @@ def record_flag(document_id, flag_type, detail=None, duplicate_of=None, file_has
             "duplicate_of": duplicate_of,
             "file_hash": file_hash,
             "created_at": datetime.now(timezone.utc).isoformat()
-        }).execute()
+        }, on_conflict="document_id,flag_type").execute()
     except Exception as e:
         print(f"[SCREENING] failed to record flag: {e}")
 
