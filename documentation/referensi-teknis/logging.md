@@ -16,11 +16,11 @@ Nama dalam bentuk lain tidak terdeteksi.
 Retrieval logging:
 
 ```text
-log/log_time.txt             → [request_id] [RETRIEVAL] embedding | embedding_tokens | search | rerank | relevant | total
+log/time.log             → [request_id] [RETRIEVAL] embedding | embedding_tokens | search | rerank | relevant | total
                              → [request_id] [LLM] ttft | total, dan [REQUEST] total
                              → [request_id] [LOGGING] total (waktu insert interaction_logs)
-log/log_retrieval-docs.txt   → pertanyaan (anonymized) dan seluruh rerank score (ditimpa setiap request)
-log/log_rbac_audit.txt       → hanya ditulis bila RBAC filter aktif (saat ini nonaktif)
+log/retrieval-docs.log   → pertanyaan (anonymized) dan seluruh rerank score (ditimpa setiap request)
+log/rbac_audit.log       → hanya ditulis bila RBAC filter aktif (saat ini nonaktif)
 ```
 
 Metric retrieval:

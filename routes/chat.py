@@ -100,7 +100,7 @@ def chat():
     log_start = time.perf_counter()
     log_query_background(safe_query, anon_id, request_id, session_id)
     log_time = time.perf_counter() - log_start
-    with open("log/log_time.txt", "a", encoding="utf-8") as f:
+    with open("log/time.log", "a", encoding="utf-8") as f:
         f.write(f"[{request_id}] [LOGGING] total={log_time:.3f}s\n")
 
     try:
@@ -208,7 +208,7 @@ def chat():
             f"total={total_time:.3f}s\n\n"
         )
 
-        with open("log/log_time.txt", "a", encoding="utf-8") as f:
+        with open("log/time.log", "a", encoding="utf-8") as f:
             f.write(log)
 
         yield f"data: {json.dumps({'type': 'answer', 'content': answer}, ensure_ascii=False)}\n\n"

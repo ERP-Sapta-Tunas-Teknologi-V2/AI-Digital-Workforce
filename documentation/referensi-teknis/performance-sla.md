@@ -133,7 +133,7 @@ llm_total
 request_total
 ```
 
-Metric dicatat di `log/log_time.txt` (`embedding`, `search`, `rerank`, `total`, `ttft`, LLM `total`, `[REQUEST] total`).
+Metric dicatat di `log/time.log` (`embedding`, `search`, `rerank`, `total`, `ttft`, LLM `total`, `[REQUEST] total`).
 
 ### Definisi metrik (sesuai implementasi)
 

@@ -4,7 +4,7 @@
 > - Session expiry/cleanup belum berjalan: kolom `expires_at`/`absolute_expires_at` belum ada, `SupabaseSessionStore.cleanup()` masih stub (`return 0`). Lihat `session.md`.
 > - `sync/retention.py` hanya menjalankan `delete_expired_interaction_logs()` bila dipanggil. Belum ada scheduler
 >   (cron/systemd timer) yang terdokumentasi. Tambahkan, mis. `0 2 * * * cd /opt/AI-Digital-Workforce && .venv/bin/python -m sync.retention >> log/retention.log 2>&1`.
-> - File `log/*.txt` belum memiliki log rotation.
+> - File `log/*.log` belum memiliki log rotation.
 
 ## 1. Objective
 

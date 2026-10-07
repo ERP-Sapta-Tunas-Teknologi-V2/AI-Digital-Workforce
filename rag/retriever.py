@@ -61,7 +61,7 @@ def hybrid_retrieve(
     search_time = time.perf_counter() - search_start
 
     if allowed_categories is not None:
-        with open("log/log_rbac_audit.txt", "a", encoding="utf-8") as f:
+        with open("log/rbac_audit.log", "a", encoding="utf-8") as f:
             f.write(
                 f"[{request_id}] RBAC_FILTER_APPLIED | "
                 f"role={role} | "
@@ -73,7 +73,7 @@ def hybrid_retrieve(
 
     safe_query = anonymize_query(question)
 
-    with open("log/log_retrieval-docs.txt", "a", encoding="utf-8") as f:
+    with open("log/retrieval-docs.log", "a", encoding="utf-8") as f:
         f.write(f"\n\n=== REQUEST {request_id} ===\nQUESTION: {safe_query}\n")
 
     for row in result.data or []:
@@ -90,7 +90,7 @@ def hybrid_retrieve(
     rerank_start = time.perf_counter()
 
     all_scored = rerank(question, documents, top_k=len(documents))
-    with open("log/log_retrieval-docs.txt", "a", encoding="utf-8") as f:
+    with open("log/retrieval-docs.log", "a", encoding="utf-8") as f:
         f.write("\n\n=== RERANK SCORES (ALL) ===\n")
         for document in all_scored:
             f.write(
@@ -133,7 +133,7 @@ def hybrid_retrieve(
         f"relevant={len(documents)} | "
         f"total={total_time:.3f}s\n"
     )
-    with open("log/log_time.txt", "a", encoding="utf-8") as f:
+    with open("log/time.log", "a", encoding="utf-8") as f:
         f.write(log)
 
     return documents, context

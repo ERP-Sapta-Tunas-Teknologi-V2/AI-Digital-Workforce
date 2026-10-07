@@ -2,7 +2,7 @@
 
 > ⚠️ **Status implementasi:** Retrieval filtering **belum aktif**. Pada `routes/chat.py`, argumen
 > `allowed_categories=get_allowed_categories(role)` dikomentari, sehingga semua request mengakses seluruh kategori
-> dan `log_rbac_audit.txt` tidak pernah ditulis. `@require_role("Admin")` juga dikomentari di `admin.py` **dan** `analytics.py`.
+> dan `rbac_audit.log` tidak pernah ditulis. `@require_role("Admin")` juga dikomentari di `admin.py` **dan** `analytics.py`.
 > `dashboard.js` mengirim `X-User-Role: Admin` secara hardcode, sedangkan `chat.js` tidak mengirim `X-User-Role`.
 
 ## 1. Objective
@@ -156,7 +156,7 @@ Setiap retrieval yang menerapkan filter RBAC (yaitu ketika `allowed_categories i
 ### 5.1 Lokasi Log
 
 ```text
-log/log_rbac_audit.txt
+log/rbac_audit.log
 ```
 
 ### 5.2 Informasi yang Dicatat
@@ -180,7 +180,7 @@ Contoh entri log:
 * Investigasi apabila ada laporan chatbot menjawab menggunakan informasi dari kategori yang seharusnya tidak boleh diakses oleh role tertentu.
 * Analisis pola akses per role dari waktu ke waktu.
 
-Log ini **tidak mencatat isi pertanyaan** secara default; jika dibutuhkan untuk investigasi mendalam, korelasikan `request_id` dengan `log/log_retrieval-docs.txt` yang sudah menyimpan pertanyaan (dalam bentuk anonymized).
+Log ini **tidak mencatat isi pertanyaan** secara default; jika dibutuhkan untuk investigasi mendalam, korelasikan `request_id` dengan `log/retrieval-docs.log` yang sudah menyimpan pertanyaan (dalam bentuk anonymized).
 
 ---
 

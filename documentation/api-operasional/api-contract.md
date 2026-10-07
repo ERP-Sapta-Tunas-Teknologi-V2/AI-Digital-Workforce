@@ -1116,13 +1116,13 @@ total
 Log waktu dan LLM:
 
 ```text
-log/log_time.txt             → latency retrieval (embedding, search, rerank, relevant, total) dan LLM (ttft, total, request total)
+log/time.log             → latency retrieval (embedding, search, rerank, relevant, total) dan LLM (ttft, total, request total)
 ```
 
 Log dokumen dan rerank score:
 
 ```text
-log/log_retrieval-docs.txt
+log/retrieval-docs.log
 ```
 
 Log ini digunakan untuk QA dan monitoring latency retrieval.
@@ -1132,8 +1132,8 @@ Log ini digunakan untuk QA dan monitoring latency retrieval.
 Performance retrieval dapat dievaluasi menggunakan log:
 
 ```text
-log/log_time.txt
-log/log_retrieval-docs.txt
+log/time.log
+log/retrieval-docs.log
 ```
 
 Metric utama:

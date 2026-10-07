@@ -518,7 +518,7 @@ Install dependencies:
 pip install -r requirements.txt
 ```
 
-Buat folder log (folder `log/` ada di `.gitignore`, sedangkan kode membuka `log/log_time.txt` tanpa membuatnya, sehingga clone baru bisa gagal pada request pertama):
+Buat folder log (folder `log/` ada di `.gitignore`, sedangkan kode membuka `log/time.log` tanpa membuatnya, sehingga clone baru bisa gagal pada request pertama):
 
 ```bash
 mkdir log
