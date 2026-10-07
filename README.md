@@ -405,7 +405,6 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 │   ├── dashboard.html
 │   ├── dashboard.js
 │   └── dashboard.css
-├── tests/
 ├── log/
 ├── documentation/
 ├── .env
@@ -918,4 +917,3 @@ Dokumentasi detail tersedia di directory [`documentation/`](documentation):
 * [`performance-sla.md`](documentation/referensi-teknis/performance-sla.md) — performance baseline dan production SLA
 * [`logging.md`](documentation/referensi-teknis/logging.md) — query logging, anonymization, feedback
 * [`project-flow.md`](documentation/referensi-teknis/project-flow.md) — diagram alur end-to-end
-* [`testing.md`](documentation/referensi-teknis/testing.md) — menjalankan test
