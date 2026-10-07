@@ -143,19 +143,6 @@ def upload():
         elif force_replace and file_exists(category, filename):
             # Skenario A: nama file sama, replace file yang sudah ada
             old_document_id = new_document_id
-        else:
-            # Skenario C: nama file baru, tapi ada versi aktif lain di kategori yang sama
-            active_versions = [
-                v for v in get_active_version(category)
-                if v["document_id"] != new_document_id
-            ]
-            if len(active_versions) == 1:
-                old_document_id = active_versions[0]["document_id"]
-            elif len(active_versions) > 1:
-                return jsonify({
-                    "error": "multiple active versions found, specify 'supersedes' explicitly",
-                    "active_versions": [v["document_id"] for v in active_versions]
-                }), 409
 
     text_sample = extract_text_sample(filename, file_bytes)
     should_block, flags = screen_document(document_id, file_bytes, text_sample=text_sample)
@@ -182,7 +169,7 @@ def upload():
 
     upload_file(category=category, filename=filename, file_stream=file, length=len(file_bytes), content_type=mime_type)
 
-    # --- Skenario B & C: nama file berbeda -> non-aktifkan vector & status versi lama ---
+    # --- Skenario B: nama file berbeda -> non-aktifkan vector & status versi lama ---
     superseded_id = None
     if old_document_id and old_document_id != new_document_id:
         delete_vectors(old_document_id)
@@ -251,6 +238,9 @@ def documents():
             if fl["flag_type"] != "clean"
         ]
 
+    files.sort(key=lambda f: f.get("uploaded_at") or "", reverse=True)
+    files.sort(key=lambda f: f["is_archived"])
+    
     return jsonify(files)
 
 @admin_bp.route("/un-ingest", methods=["POST"])
