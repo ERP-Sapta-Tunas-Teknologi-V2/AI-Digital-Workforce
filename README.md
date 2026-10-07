@@ -35,6 +35,8 @@ Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan mengh
 * Vision model (opsional): minicpm-v4.5:8b — image-to-text pada `cleaner.py` saat ini dinonaktifkan (dikomentari)
 * PDF/Office parsing: pymupdf4llm, python-pptx, LibreOffice (headless)
 * Rate limiting: Flask-Limiter (storage Redis)
+* Package manager: [uv](https://docs.astral.sh/uv/) (Python 3.12)
+* PyTorch: build CUDA 13.0 (`cu130`) untuk reranker dan Docling
 
 ---
 
@@ -129,7 +131,8 @@ Diagram alur end-to-end lengkap (document management + runtime) tersedia pada [`
 ## Requirements
 
 ```text
-Python 3.x
+Python 3.12 (dikunci dengan .python-version)
+uv
 Supabase
 Ollama
 Qwen2.5
@@ -137,7 +140,36 @@ BGE-M3
 Redis
 LibreOffice
 MinIO
+NVIDIA GPU + driver CUDA 13.0 atau lebih baru (opsional, untuk PyTorch GPU)
 ```
+
+Python 3.12 adalah versi minimum: `routes/chat.py` memakai ekspresi multi-baris di dalam f-string, yang hanya valid mulai Python 3.12 (PEP 701). Versi Python tidak perlu diinstal manual karena uv mengunduhnya sesuai `.python-version`.
+
+### uv
+
+uv digunakan untuk mengelola Python, virtual environment, dan dependensi. Versi paket dikunci pada `uv.lock` sehingga development (Windows) dan production (Ubuntu) memakai versi yang sama.
+
+Instalasi:
+
+Windows (PowerShell):
+
+```powershell
+powershell -ExecutionPolicy ByPass -c "irm https://astral.sh/uv/install.ps1 | iex"
+```
+
+Linux / WSL / Ubuntu:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Verifikasi:
+
+```bash
+uv --version
+```
+
+Dengan uv, virtual environment **tidak perlu diaktifkan**. Gunakan awalan `uv run` untuk menjalankan perintah apa pun di dalam environment project.
 
 ### Ollama
 
@@ -298,7 +330,7 @@ Instalasi dan konfigurasi mengikuti pola yang sama menggunakan Docker, dengan `M
 
 #### MinIO Client (`mc`)
 
-`mc` adalah CLI resmi untuk mengelola MinIO secara langsung (list, hapus, kosongkan bucket, dsb), terpisah dari operasi yang dilakukan lewat aplikasi.
+`mc` adalah CLI resmi untuk mengelola MinIO secara langsung (list, hapus, kosongkan bucket, dsb), terpisah dari operasi yang dilakukan melalui aplikasi.
 
 Instalasi (Linux/WSL):
 
@@ -378,11 +410,17 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 ├── documentation/
 ├── .env
 ├── .env.example
-├── requirements.txt
+├── .python-version
+├── pyproject.toml
+├── uv.lock
 ├── supabase.sql
 ├── ingest.py
 └── app.py
 ```
+
+Seluruh isi project berada langsung di root repository (`AI-Digital-Workforce/`), tidak ada folder pembungkus tambahan.
+
+`pyproject.toml` berisi daftar dependensi, `uv.lock` mengunci versi seluruh paket, dan `.python-version` mengunci versi Python. Ketiganya harus di-commit.
 
 ---
 
@@ -457,7 +495,7 @@ MINIO_BUCKET=knowledge-expert
 REDIS_URL=redis://localhost:6379/0
 ```
 
-`EMBEDDING_MODEL` harus `bge-m3`, karena tokenizer dimuat dari `BAAI/{EMBEDDING_MODEL}`. Tokenizer dan reranker diunduh dari HuggingFace saat pertama kali dijalankan (server perlu akses internet atau cache model). Setiap Gunicorn worker memuat reranker dan tokenizer sendiri, jadi perhitungkan RAM (3 worker × model).
+`EMBEDDING_MODEL` harus `bge-m3`, karena tokenizer dimuat dari `BAAI/{EMBEDDING_MODEL}`. Tokenizer dan reranker diunduh dari HuggingFace saat pertama kali dijalankan (server perlu akses internet atau cache model). Setiap Gunicorn worker memuat reranker dan tokenizer sendiri, jadi perhitungkan RAM dan VRAM (3 worker × model).
 
 Nama variable harus disesuaikan dengan konfigurasi pada:
 
@@ -486,42 +524,75 @@ Clone repository dan masuk ke directory project:
 cd AI-Digital-Workforce
 ```
 
-Buat virtual environment:
+Install dependensi dan buat virtual environment (`.venv`) sesuai `uv.lock`:
 
 ```bash
-python -m venv .venv
+uv sync
 ```
 
-Aktifkan virtual environment.
+`uv sync` otomatis mengunduh Python 3.12 (sesuai `.python-version`) jika belum tersedia. Tidak perlu `python -m venv`, aktivasi `.venv`, maupun `pip install`.
 
-Windows PowerShell:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Jika PowerShell memblokir script:
-
-```powershell
-Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass
-```
-
-Kemudian:
-
-```powershell
-.venv\Scripts\Activate.ps1
-```
-
-Install dependencies:
+Verifikasi:
 
 ```bash
-pip install -r requirements.txt
+uv run python --version
 ```
 
-Buat folder log (folder `log/` ada di `.gitignore`, sedangkan kode membuka `log/time.log` tanpa membuatnya, sehingga clone baru bisa gagal pada request pertama):
+Folder `log/` dibuat otomatis oleh `create_app()` saat aplikasi pertama kali dijalankan.
+
+### PyTorch GPU
+
+Reranker (`sentence-transformers`) dan Docling memakai PyTorch. Secara default PyPI di Windows hanya menyediakan build CPU, sehingga `torch` dan `torchvision` diambil dari index PyTorch CUDA 13.0. Konfigurasi pada `pyproject.toml`:
+
+```toml
+[tool.uv]
+package = false
+link-mode = "copy"
+
+[tool.uv.sources]
+torch = { index = "pytorch-cu130" }
+torchvision = { index = "pytorch-cu130" }
+
+[[tool.uv.index]]
+name = "pytorch-cu130"
+url = "https://download.pytorch.org/whl/cu130"
+explicit = true
+```
+
+Catatan:
+
+* `[tool.uv.sources]` hanya berlaku untuk **dependensi langsung**. `torch` dan `torchvision` harus ada di `dependencies` (tambahkan dengan `uv add torch torchvision`), bukan hanya terpasang sebagai dependensi transitif.
+* Nama index pada `sources` dan `[[tool.uv.index]]` harus sama persis.
+* `torchvision` tidak di-import langsung oleh kode, tetapi dibutuhkan Docling dan harus berpasangan dengan versi `torch`, sehingga keduanya diarahkan ke index yang sama.
+* `link-mode = "copy"` menghilangkan peringatan hardlink ketika cache uv dan project berada pada drive yang berbeda.
+* Jangan memakai `uv pip install torch ...`: perubahan itu hanya berlaku pada `.venv` dan akan ditimpa oleh `uv run`/`uv sync` berikutnya karena tidak tercatat di `uv.lock`.
+
+Verifikasi:
 
 ```bash
-mkdir log
+uv run python -c "import torch, torchvision; print(torch.__version__, torchvision.__version__, torch.cuda.is_available())"
+```
+
+Hasil yang benar: kedua versi berakhiran `+cu130` dan nilai terakhir `True`. Jika `False`, periksa `nvidia-smi`: angka `CUDA Version` harus 13.0 atau lebih tinggi. Jika driver lebih rendah, ganti index ke build yang sesuai (misalnya `cu128`) pada `pyproject.toml`, lalu jalankan `uv lock` dan `uv sync`.
+
+Jika tidak memakai GPU, hapus blok `[tool.uv.sources]` dan `[[tool.uv.index]]` di atas.
+
+### Mengelola dependensi
+
+```bash
+uv add <paket>             # tambah dependensi runtime
+uv add --dev <paket>       # tambah dependensi development (pytest, ruff, dst.)
+uv remove <paket>          # hapus dependensi
+uv lock                    # perbarui uv.lock
+uv sync                    # selaraskan .venv dengan uv.lock (jalankan setelah git pull)
+```
+
+Jangan memakai `pip install` untuk menambah paket, karena `pyproject.toml` dan `uv.lock` tidak ikut diperbarui.
+
+`gunicorn` hanya dibutuhkan di Linux (tidak berjalan di Windows), sehingga didaftarkan dengan marker platform:
+
+```bash
+uv add "gunicorn; sys_platform == 'linux'"
 ```
 
 ---
@@ -566,14 +637,30 @@ Pastikan Ollama sudah berjalan (buka aplikasi Ollama atau jalankan `ollama serve
 
 #### 3. VS Code Terminal — jalankan Flask app:
 
-```bash
-flask run
+Jalankan dari root `AI-Digital-Workforce`:
+
+```powershell
+uv run flask run
 ```
 
 Atau dengan mode debug (auto-reload saat ada perubahan kode):
 
+```powershell
+uv run flask run --debug
+```
+
+Pada VS Code, pilih interpreter `.\.venv\Scripts\python.exe` sekali (`Ctrl+Shift+P` → *Python: Select Interpreter*) agar debugger dan test explorer memakai environment yang sama.
+
+### Indexing manual
+
 ```bash
-flask run --debug
+uv run python ingest.py <category> <filename>
+```
+
+### Test
+
+```bash
+uv run pytest -v
 ```
 
 ---
@@ -609,10 +696,25 @@ Jangan menggunakan Flask development server (`flask run` / `app.run(debug=True)`
 
 ```bash
 sudo apt update && sudo apt upgrade -y
-sudo apt install -y python3 python3-venv python3-pip nginx git redis-server libreoffice
+sudo apt install -y nginx git curl redis-server libreoffice
 sudo systemctl enable --now redis-server
 redis-cli ping
 libreoffice --version
+```
+
+Python tidak perlu diinstal dengan `apt`, karena uv mengunduh Python 3.12 sesuai `.python-version`.
+
+Instal uv:
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh
+uv --version
+```
+
+Jika server memakai GPU NVIDIA, pastikan driver mendukung CUDA 13.0 atau lebih tinggi:
+
+```bash
+nvidia-smi
 ```
 
 ### 2. Install Ollama
@@ -638,16 +740,33 @@ Port ini tidak boleh diekspos langsung ke public internet.
 ```bash
 git clone <repo-url> /opt/AI-Digital-Workforce
 cd /opt/AI-Digital-Workforce
-python3 -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
-pip install gunicorn
+uv sync --frozen --no-dev
+```
+
+* `--frozen` memastikan server memakai versi persis dari `uv.lock` tanpa menghitung ulang.
+* `--no-dev` melewati dependensi development (pytest, ruff, import-linter).
+* `gunicorn` terpasang otomatis karena didaftarkan dengan marker `sys_platform == 'linux'`.
+
+Jalankan `uv sync` dengan user yang sama dengan yang memiliki direktori project, lalu pastikan `www-data` dapat membaca `.venv`:
+
+```bash
+sudo chown -R www-data:www-data /opt/AI-Digital-Workforce
 ```
 
 Buat `.env` sesuai [Konfigurasi Environment](#konfigurasi-environment), lalu batasi permission:
 
 ```bash
 chmod 600 .env
+```
+
+Memperbarui aplikasi di kemudian hari:
+
+```bash
+cd /opt/AI-Digital-Workforce
+git pull
+sudo systemctl stop AI-Digital-Workforce
+uv sync --frozen --no-dev
+sudo systemctl start AI-Digital-Workforce
 ```
 
 ### 4. Jalankan dengan Gunicorn (systemd)
@@ -669,6 +788,8 @@ Restart=always
 [Install]
 WantedBy=multi-user.target
 ```
+
+`ExecStart` memanggil Gunicorn langsung dari `.venv` yang dibuat uv, sehingga tidak perlu aktivasi environment.
 
 ```bash
 sudo systemctl daemon-reload
