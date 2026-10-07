@@ -68,7 +68,7 @@
         Reranker (Qwen3-Reranker, top 3)
                     │
                     ▼
-                 Qwen2.5
+                 Qwen3.5
                     │
                     ▼
                     SSE

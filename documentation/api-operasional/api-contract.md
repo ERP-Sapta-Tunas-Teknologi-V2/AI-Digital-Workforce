@@ -392,7 +392,7 @@ Reranking (top 3)
 Tidak ada dokumen? ── Ya ──→ Fallback JSON
      │ Tidak
      ↓
-Qwen2.5 (streaming)
+Qwen3.5 (streaming)
      ↓
 SSE: metadata → token… → answer → sources → done
 ```

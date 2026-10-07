@@ -25,7 +25,7 @@ Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan mengh
 * Vector database: pgvector
 * RAG framework: LangChain
 * LLM runtime: Ollama
-* LLM: Qwen2.5
+* LLM: Qwen3.5
 * Embedding: BGE-M3
 * Document processing: Docling
 * Response: Server-Sent Events (SSE)
@@ -73,7 +73,7 @@ Reranking (top 3)
    ↓
 Relevant Documents
    ↓
-Qwen2.5
+Qwen3.5
    ↓
 SSE
    ↓
@@ -93,7 +93,7 @@ Standalone Question
    ↓
 Retrieval
    ↓
-Qwen2.5
+Qwen3.5
    ↓
 SSE
 ```
@@ -135,7 +135,7 @@ Python 3.12 (dikunci dengan .python-version)
 uv
 Supabase
 Ollama
-Qwen2.5
+Qwen3.5
 BGE-M3
 Redis
 LibreOffice
@@ -178,7 +178,7 @@ Instal Ollama mengikuti dokumentasi resmi [Ollama Quickstart](https://docs.ollam
 Model yang digunakan:
 
 ```text
-qwen2.5:14b
+qwen3.5:9b
 bge-m3
 minicpm-v4.5:8b
 ```
@@ -186,7 +186,7 @@ minicpm-v4.5:8b
 Instal model:
 
 ```bash
-ollama pull qwen2.5:14b
+ollama pull qwen3.5:9b
 ollama pull bge-m3
 ollama pull minicpm-v4.5:8b
 ```
@@ -480,7 +480,7 @@ SUPABASE_KEY=PUBLISHABLE-KEY
 SUPABASE_SECRET_KEY=SECRET-KEY
 
 OLLAMA_BASE_URL=http://localhost:11434
-OLLAMA_LLM=qwen2.5:14b
+OLLAMA_LLM=qwen3.5:9b
 EMBEDDING_MODEL=bge-m3
 RERANKER_MODEL=Qwen/Qwen3-Reranker-0.6B
 VISION_MODEL=minicpm-v4.5:8b
@@ -686,7 +686,7 @@ RAG
    ├── MinIO
    ├── Redis
    ├── BGE-M3 (Ollama)
-   └── Qwen2.5 (Ollama)
+   └── Qwen3.5 (Ollama)
 ```
 
 Jangan menggunakan Flask development server (`flask run` / `app.run(debug=True)`) untuk production.
@@ -720,7 +720,7 @@ nvidia-smi
 
 ```bash
 curl -fsSL https://ollama.com/install.sh | sh
-ollama pull qwen2.5:14b
+ollama pull qwen3.5:9b
 ollama pull bge-m3
 ollama pull minicpm-v4.5:8b
 ollama list
