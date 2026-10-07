@@ -1,11 +1,5 @@
 .env
-/knowledge-expert/documents
-/knowledge-expert/__pycache__
-/knowledge-expert/routes/__pycache__
-/knowledge-expert/rag/__pycache__
-/knowledge-expert/utils/__pycache__
-/knowledge-expert/session/__pycache__
-/knowledge-expert/sync/__pycache__
-/knowledge-expert/ingestion/__pycache__
 test.ipynb
-/knowledge-expert/log
+*.pyc
+/documents
+/log
