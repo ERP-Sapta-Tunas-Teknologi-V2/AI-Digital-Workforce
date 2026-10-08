@@ -39,6 +39,8 @@ def get_allowed_categories(role):
 
     if role is None:
         return None  # no filter — dipakai widget publik tanpa header
+    if role == "Admin":
+        return None  # admin boleh akses semua kategori
 
     return [
         cat for cat, allowed in CATEGORY_ACCESS.items()
