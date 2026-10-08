@@ -1,8 +1,7 @@
-from langchain_ollama import ChatOllama
 from langchain_core.prompts import ChatPromptTemplate
+from utils.ollama_client import get_llm
 
-from config import OLLAMA_BASE_URL, OLLAMA_LLM
-llm = ChatOllama(model=OLLAMA_LLM, base_url=OLLAMA_BASE_URL, temperature=0, reasoning=False)
+llm = get_llm()
 
 prompt = ChatPromptTemplate.from_template("""
 Anda adalah chatbot resmi perusahaan yang membantu pengguna memperoleh informasi berdasarkan knowledge base perusahaan.

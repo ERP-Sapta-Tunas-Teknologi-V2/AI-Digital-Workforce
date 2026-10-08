@@ -1,10 +1,15 @@
 import base64
-from langchain_ollama import ChatOllama
+from functools import lru_cache
 from langchain_core.messages import HumanMessage
 
 from config import VISION_MODEL
+from utils.ollama_client import get_llm
 
-vision_llm = ChatOllama(model=VISION_MODEL, temperature=0, num_ctx=8192, reasoning=False)
+@lru_cache(maxsize=1)
+def _vision_llm():
+    if not VISION_MODEL:
+        raise RuntimeError("VISION_MODEL belum diset")
+    return get_llm(model=VISION_MODEL, keep_alive=0)
 
 def describe_image(image_bytes: str) -> str:
     """Generate a detailed text description of an image using a local Ollama vision model via LangChain."""
@@ -30,5 +35,5 @@ def describe_image(image_bytes: str) -> str:
         },
     ])
 
-    response = vision_llm.invoke([message])
+    response = _vision_llm().invoke([message])
     return response.content

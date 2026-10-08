@@ -1,6 +1,8 @@
 import os
 os.environ["TORCHDYNAMO_DISABLE"] = "1"
 os.environ["TORCH_COMPILE_DISABLE"] = "1"
+os.environ.setdefault("HF_HUB_OFFLINE", "1")
+os.environ.setdefault("TRANSFORMERS_OFFLINE", "1")
 
 import sys
 from ingestion.indexer import index_document

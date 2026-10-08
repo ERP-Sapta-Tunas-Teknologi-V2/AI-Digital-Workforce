@@ -1,14 +1,13 @@
-from langchain_core.documents import Document
-from transformers import AutoTokenizer
 import hashlib
 import re
+from langchain_core.documents import Document
 
 from utils.injection_patterns import INJECTION_PATTERNS
-from config import EMBEDDING_MODEL
+from rag.embeddings import get_tokenizer
 
 class StructureAwareChunker:
     def __init__(self, max_tokens=1000):
-        self.tokenizer = AutoTokenizer.from_pretrained(f"BAAI/{EMBEDDING_MODEL}")
+        self.tokenizer = get_tokenizer()
         self.max_tokens = max_tokens
 
     def _scan_injection(self, content):
