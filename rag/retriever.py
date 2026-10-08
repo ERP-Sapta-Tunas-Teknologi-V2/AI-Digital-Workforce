@@ -116,7 +116,7 @@ def hybrid_retrieve(
         context_parts.append(
             f"[{i}]\n"
             f"{document.page_content}\n"
-            f"(tanggal efektif: {document.metadata.get('uploaded_at', '')[:10]})"
+            f"(tanggal efektif: {(document.metadata.get('updated_at') or document.metadata.get('uploaded_at', ''))[:10]})"
         )
     context = "\n\n".join(context_parts)
 

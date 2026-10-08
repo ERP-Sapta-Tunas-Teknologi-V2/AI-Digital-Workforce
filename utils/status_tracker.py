@@ -26,7 +26,7 @@ def get_all_statuses():
     result = (
         supabase
         .table("document_status")
-        .select("document_id, status, last_ingested_at, version_status")
+        .select("document_id, status, last_ingested_at, version_status, approval_status, expires_at")
         .execute()
     )
     return result.data or []

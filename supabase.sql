@@ -63,6 +63,8 @@ returns table (
     rank_semantic int
 )
 language sql
+security definer
+set search_path = public
 as $$
     with full_text as (
         select
@@ -81,7 +83,14 @@ as $$
                     ) as query
             ) q
         where d.fts @@ query
-          and (category_filter is null or d.metadata->>'category' = any(category_filter))
+            and (category_filter is null or d.metadata->>'category' = any(category_filter))
+            and exists (
+                select 1 from public.document_status s
+                where s.document_id = d.document_id
+                    and s.approval_status = 'approved'
+                    and s.version_status = 'active'
+                    and (s.expires_at is null or s.expires_at > now())
+            )
         order by rank_ix
         limit least(match_count, 30) * 2
     ),
@@ -94,7 +103,14 @@ as $$
             ) as rank_ix
         from public.documents d
         where d.embedding is not null
-          and (category_filter is null or d.metadata->>'category' = any(category_filter))
+            and (category_filter is null or d.metadata->>'category' = any(category_filter))
+            and exists (
+                select 1 from public.document_status s
+                where s.document_id = d.document_id
+                    and s.approval_status = 'approved'
+                    and s.version_status = 'active'
+                    and (s.expires_at is null or s.expires_at > now())
+            )
         order by d.embedding <=> query_embedding
         limit least(match_count, 30) * 2
     ),
@@ -233,6 +249,10 @@ create table if not exists public.document_status (
     version_status text not null default 'active',  -- 'active' | 'superseded'
     superseded_by text,   -- document_id versi baru
     superseded_at timestamptz,
+    approval_status text not null default 'pending' check (approval_status in ('pending','approved','rejected')),
+    approved_by text,
+    approved_at timestamptz,
+    expires_at timestamptz,
     created_at timestamptz default now(),
     updated_at timestamptz default now()
 );

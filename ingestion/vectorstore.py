@@ -133,7 +133,7 @@ def add_documents(chunks):
         existing = (
             supabase
             .table("documents")
-            .select("id, fingerprint")
+            .select("id, fingerprint, metadata")
             .eq("document_id", document_id)
             .eq("chunk_index", chunk_index)
             .limit(1)
@@ -144,6 +144,9 @@ def add_documents(chunks):
             existing.data
             and existing.data[0]["fingerprint"] == fingerprint
         ):
+            if (existing.data[0].get("metadata") or {}) != metadata:
+                supabase.table("documents").update({"metadata": metadata}) \
+                    .eq("id", existing.data[0]["id"]).execute()
             skipped += 1
             continue
 

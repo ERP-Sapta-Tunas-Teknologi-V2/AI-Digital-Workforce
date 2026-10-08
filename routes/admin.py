@@ -1,5 +1,6 @@
 from pathlib import Path
 from threading import Thread
+from datetime import datetime, timezone
 from flask import Blueprint, request, jsonify, send_file
 
 from utils.permissions import require_role
@@ -169,6 +170,10 @@ def upload():
 
     upload_file(category=category, filename=filename, file_stream=file, length=len(file_bytes), content_type=mime_type)
 
+    supabase.table("document_status").update({
+        "approval_status": "pending", "approved_by": None, "approved_at": None
+    }).eq("document_id", document_id).execute()
+
     # --- Skenario B: nama file berbeda -> non-aktifkan vector & status versi lama ---
     superseded_id = None
     if old_document_id and old_document_id != new_document_id:
@@ -227,6 +232,10 @@ def documents():
         f["last_ingested_at"] = status_entry["last_ingested_at"] if status_entry else None
         f["version_status"] = status_entry.get("version_status", "active") if status_entry else "active"
         f["superseded_by"] = status_entry.get("superseded_by") if status_entry else None
+        f["approval_status"] = status_entry.get("approval_status", "pending") if status_entry else "pending"
+        f["expires_at"] = status_entry.get("expires_at") if status_entry else None
+        f["is_expired"] = bool(f["expires_at"]) and \
+            datetime.fromisoformat(f["expires_at"].replace("Z", "+00:00")) < datetime.now(timezone.utc)
         f["uploaded_at_wib"] = _to_wib(f["uploaded_at"])
         f["last_ingested_at_wib"] = _to_wib(f["last_ingested_at"]) if status_entry else None
         f["is_archived"] = is_archived
@@ -242,6 +251,57 @@ def documents():
     files.sort(key=lambda f: f["is_archived"])
     
     return jsonify(files)
+
+@admin_bp.route("/documents/approval", methods=["POST"])
+# @require_role("Admin")
+def set_approval():
+    data = request.get_json(silent=True) or {}
+    category = data.get("category")
+    filename = data.get("filename")
+    action = data.get("action")          # "approve" | "reject"
+    expires_at = data.get("expires_at")  # opsional, ISO date/datetime
+
+    if not category or category not in ALLOWED_CATEGORIES:
+        return jsonify({"error": f"category must be one of {sorted(ALLOWED_CATEGORIES)}"}), 400
+    if not filename or not isinstance(filename, str):
+        return jsonify({"error": "filename is required"}), 400
+    if action not in {"approve", "reject"}:
+        return jsonify({"error": "action must be 'approve' or 'reject'"}), 400
+    if not file_exists(category, filename):
+        return jsonify({"error": "file not found in storage"}), 404
+
+    if expires_at:
+        try:
+            datetime.fromisoformat(expires_at)
+        except ValueError:
+            return jsonify({"error": "expires_at must be ISO format"}), 400
+
+    document_id = f"{category}:{Path(filename).stem}"
+
+    if action == "approve":
+        flags = supabase.table("document_flags").select("flag_type").eq("document_id", document_id).execute()
+        blocking = [f["flag_type"] for f in (flags.data or []) if f["flag_type"] in {"duplicate", "confidential"}]
+        if blocking:
+            return jsonify({"error": f"document flagged as {blocking}, cannot be approved"}), 409
+
+    payload = {
+        "approval_status": "approved" if action == "approve" else "rejected",
+        "approved_by": request.headers.get("X-User-Role") if action == "approve" else None,
+        "approved_at": datetime.now(timezone.utc).isoformat() if action == "approve" else None,
+        "expires_at": expires_at if action == "approve" else None,
+        "updated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+    existing = supabase.table("document_status").select("document_id").eq("document_id", document_id).execute()
+    if existing.data:
+        supabase.table("document_status").update(payload).eq("document_id", document_id).execute()
+    else:
+        supabase.table("document_status").insert({
+            **payload, "document_id": document_id, "source": filename,
+            "category": category, "status": "not_ingested",
+        }).execute()
+
+    return jsonify({"message": "approved" if action == "approve" else "rejected", "document_id": document_id}), 200
 
 @admin_bp.route("/un-ingest", methods=["POST"])
 # @require_role("Admin")

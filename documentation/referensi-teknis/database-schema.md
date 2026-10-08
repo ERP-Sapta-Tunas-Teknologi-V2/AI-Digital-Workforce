@@ -125,6 +125,10 @@ Melacak status ingest setiap dokumen, termasuk state versioning (khusus kategori
 | `version_status`      | text           | No       | `'active'`  | `active` atau `superseded` (khusus dokumen versi lama yang digantikan).      |
 | `superseded_by`       | text           | Yes      | -           | `document_id` versi baru yang menggantikan baris ini.                        |
 | `superseded_at`       | timestamptz    | Yes      | -           | Waktu baris ditandai `superseded`.                                           |
+| `approval_status`     | text           | No       | `'pending'` | `pending` / `approved` / `rejected` (`check constraint`). Hanya `approved` yang ikut `hybrid_search`. |
+| `approved_by`         | text           | Yes      | -           | Nilai header `X-User-Role` saat approve (belum terverifikasi, lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)). `null` saat reject atau upload ulang. |
+| `approved_at`         | timestamptz    | Yes      | -           | Waktu approve. `null` saat reject atau upload ulang.                         |
+| `expires_at`          | timestamptz    | Yes      | -           | Batas berlaku dokumen. Setelah lewat, dokumen tidak ikut pencarian. `null` = tidak kedaluwarsa. |
 | `created_at`          | timestamptz    | Yes      | `now()`     | Waktu baris pertama kali dibuat.                                             |
 | `updated_at`          | timestamptz    | Yes      | `now()`     | Waktu update terakhir; dipakai `reset_stale_processing()` (processing > 15 menit → `failed`). |
 

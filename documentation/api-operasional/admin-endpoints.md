@@ -103,6 +103,9 @@ Response menampilkan setiap file beserta waktu upload dan status ingest, dalam z
     "size": 245678,
     "version_status": "active",
     "superseded_by": null,
+    "approval_status": "approved",
+    "expires_at": null,
+    "is_expired": false,
     "is_archived": false,
     "flags": [{"type": "stale", "detail": "matched pattern: \\bdraft\\b", "duplicate_of": null}]
   }
@@ -120,7 +123,88 @@ failed
 
 `ingest_status` diambil dari tabel `document_status` dan dicocokkan berdasarkan `document_id`.
 
+Nilai `approval_status`: `pending` (default), `approved`, `rejected`.
+
 Endpoint ini juga menjalankan `reset_stale_processing()`: status `processing` yang lebih dari 15 menit diubah ke `failed`.
+
+## Approval Dokumen
+
+Mengatur status persetujuan dokumen. Hanya dokumen yang berstatus `approved`, `active`, dan belum kedaluwarsa yang ikut dicari oleh `hybrid_search`, jadi dokumen yang sudah di-ingest tetap tidak dipakai chatbot sebelum di-approve.
+
+```http
+POST /api/admin/documents/approval
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "category": "datasheet",
+  "filename": "example.pdf",
+  "action": "approve",
+  "expires_at": "2026-12-31"
+}
+```
+
+| Field        | Required | Description                                                                                  |
+| ------------ | -------- | --------------------------------------------------------------------------------------------- |
+| `category`   | ya       | Salah satu dari 12 kategori (lihat [Sync satu category](#sync-satu-category))                |
+| `filename`   | ya       | Nama file yang sudah ada di MinIO                                                             |
+| `action`     | ya       | `approve` atau `reject`                                                                       |
+| `expires_at` | tidak    | Format ISO (`YYYY-MM-DD` atau datetime). Hanya dipakai saat `approve`; diabaikan saat `reject` |
+
+Response `200 OK`:
+
+```json
+{
+  "message": "approved",
+  "document_id": "datasheet:example"
+}
+```
+
+Untuk `action = reject`, nilai `message` adalah `"rejected"`.
+
+### Efek
+
+| Action    | `approval_status` | `approved_by`                  | `approved_at` | `expires_at`          |
+| --------- | ----------------- | ------------------------------ | ------------- | --------------------- |
+| `approve` | `approved`        | header `X-User-Role`           | waktu sekarang (UTC) | nilai request (atau `null`) |
+| `reject`  | `rejected`        | `null`                         | `null`        | `null`                |
+
+* Jika row `document_status` belum ada (dokumen belum pernah di-ingest), row dibuat dengan `status = not_ingested`.
+* Approval tidak memicu ingest, dan reject tidak menghapus vector. Vector tetap ada di `documents` tetapi tidak ikut pencarian.
+* Upload ulang (`replace=true`) mengembalikan `approval_status` ke `pending` dan mengosongkan `approved_by` dan `approved_at`.
+* Dokumen yang melewati `expires_at` ditampilkan sebagai `expired` di daftar dokumen (`is_expired: true`) dan tidak ikut pencarian.
+
+### Error Response
+
+`400 Bad Request`:
+
+```json
+{ "error": "category must be one of [...]" }
+```
+```json
+{ "error": "filename is required" }
+```
+```json
+{ "error": "action must be 'approve' or 'reject'" }
+```
+```json
+{ "error": "expires_at must be ISO format" }
+```
+
+`404 Not Found`:
+
+```json
+{ "error": "file not found in storage" }
+```
+
+`409 Conflict`, jika `action = approve` dan dokumen ber-flag `duplicate` atau `confidential` (lihat [`screening.md`](../kebijakan/screening.md)):
+
+```json
+{ "error": "document flagged as ['duplicate'], cannot be approved" }
+```
 
 ## Ingest Endpoint
 
@@ -273,7 +357,7 @@ Lifecycle dokumen:
                      MinIO
                        │
                        ▼
-                 not_ingested
+                 not_ingested  (approval_status: pending)
                        │
                        │ Ingest
                        ▼
@@ -289,6 +373,8 @@ Lifecycle dokumen:
                   ▼
              not_ingested
 ```
+
+Dokumen baru dipakai chatbot hanya setelah `success` ingest **dan** `approved`.
 
 Delete dari dashboard:
 

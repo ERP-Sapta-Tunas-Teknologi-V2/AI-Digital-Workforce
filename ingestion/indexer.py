@@ -1,5 +1,5 @@
 from pathlib import Path
-from datetime import datetime
+from datetime import datetime, timezone
 import tempfile
 import time
 
@@ -32,6 +32,8 @@ def index_document(category: str, filename: str):
         with tempfile.TemporaryDirectory() as temp_dir:
             local_path = Path(temp_dir) / filename
             client.fget_object(config.MINIO_BUCKET, object_key(category, filename), str(local_path))
+            stat = client.stat_object(config.MINIO_BUCKET, object_key(category, filename))
+            updated_at = stat.last_modified.astimezone(timezone.utc).isoformat()
 
             try:
                 if local_path.suffix.lower() in {".docx", ".pdf", ".pptx"}:
@@ -63,6 +65,8 @@ def index_document(category: str, filename: str):
                 raise
 
         print("Adding documents...")
+        for chunk in chunks:
+            chunk.metadata["updated_at"] = updated_at
         result = add_documents(chunks)
 
         duration = time.perf_counter() - start
