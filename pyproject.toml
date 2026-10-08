@@ -44,5 +44,10 @@ explicit = true
 dev = [
     "import-linter>=2.15",
     "pytest>=9.1.1",
+    "pytest-timeout>=2.4.0",
     "ruff>=0.16.10",
 ]
+
+[tool.pytest.ini_options]
+timeout = 600
+markers = ["integration: butuh Ollama, Redis, MinIO, dan Supabase aktif"]
