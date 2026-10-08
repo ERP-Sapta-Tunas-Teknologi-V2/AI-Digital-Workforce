@@ -6,6 +6,7 @@ import subprocess
 import platform
 from pathlib import Path
 from pptx import Presentation
+from pptx.enum.shapes import MSO_SHAPE_TYPE
 from ingestion.image import describe_image
 
 def _get_libreoffice_command():
@@ -93,6 +94,33 @@ def pdf_to_md(pdf_path):
             
     return pages
 
+def _table_to_markdown(table):
+    rows = list(table.rows)
+    if not rows:
+        return ""
+
+    lines = []
+    header_cells = [" ".join(cell.text.split()).replace("|", "\\|") for cell in rows[0].cells]
+    lines.append("| " + " | ".join(header_cells) + " |")
+    lines.append("| " + " | ".join(["---"] * len(header_cells)) + " |")
+
+    for row in rows[1:]:
+        row_cells = [" ".join(cell.text.split()).replace("|", "\\|") for cell in row.cells]
+        lines.append("| " + " | ".join(row_cells) + " |")
+
+    return "\n".join(lines)
+
+def _shape_texts(shape):
+    if shape.shape_type == MSO_SHAPE_TYPE.GROUP:
+        for s in shape.shapes:
+            yield from _shape_texts(s)
+    elif getattr(shape, "has_table", False) and shape.has_table:
+        table_md = _table_to_markdown(shape.table)
+        if table_md.strip():
+            yield table_md
+    elif getattr(shape, "has_text_frame", False) and shape.text_frame and shape.text_frame.text.strip():
+        yield shape.text_frame.text.strip()
+
 def pptx_to_md(pptx_path):
     prs = Presentation(pptx_path)
     pages = []
@@ -101,11 +129,18 @@ def pptx_to_md(pptx_path):
         texts = []
 
         for shape in slide.shapes:
-            if hasattr(shape, "text") and shape.text.strip():
-                texts.append(shape.text.strip())
+            for text in _shape_texts(shape):
+                if text and text.strip():
+                    texts.append(text.strip())
+
+        if getattr(slide, "has_notes_slide", False) and slide.has_notes_slide:
+            notes_tf = getattr(slide.notes_slide, "notes_text_frame", None)
+            if notes_tf and notes_tf.text.strip():
+                texts.append(notes_tf.text.strip())
 
         if texts:
-            texts[0] = f"## {texts[0]}"
+            if not texts[0].startswith("|"):
+                texts[0] = f"## {texts[0]}"
 
         markdown = "\n\n".join(texts)
         pages.append({"page": page_number, "markdown": markdown})
