@@ -95,3 +95,26 @@ def reset_stale_processing():
         }).eq("document_id", row["document_id"]).execute()
 
     return len(stale.data or [])
+
+def get_doc_metadata(document_id: str) -> dict:
+    result = (
+        supabase.table("document_status")
+        .select("doc_metadata")
+        .eq("document_id", document_id)
+        .limit(1)
+        .execute()
+    )
+    return (result.data[0].get("doc_metadata") if result.data else None) or {}
+
+def save_doc_metadata(document_id, source, category, metadata: dict):
+    now = datetime.now(timezone.utc).isoformat()
+    existing = supabase.table("document_status").select("document_id").eq("document_id", document_id).execute()
+    if existing.data:
+        supabase.table("document_status").update(
+            {"doc_metadata": metadata, "updated_at": now}
+        ).eq("document_id", document_id).execute()
+    else:
+        supabase.table("document_status").insert({
+            "document_id": document_id, "source": source, "category": category,
+            "status": "not_ingested", "doc_metadata": metadata, "updated_at": now,
+        }).execute()

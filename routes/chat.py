@@ -23,7 +23,7 @@ session_manager = SessionManager()
 chat_bp = Blueprint("chat", __name__)
 
 MAX_QUERY_LENGTH = 1000
-SOURCE_FIELDS = {"citation", "page", "source", "category", "uploaded_at", "updated_at", "section_title", "version"}
+SOURCE_FIELDS = {"citation", "page", "source", "category", "uploaded_at", "updated_at", "effective_date", "section_title", "version"}
 
 def validate_query(question):
     if not isinstance(question, str):

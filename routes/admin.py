@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 from threading import Thread
 from datetime import datetime, timezone
@@ -6,9 +7,10 @@ from flask import Blueprint, request, jsonify, send_file
 from utils.permissions import require_role
 from utils.locks import try_acquire, release
 from utils.minio_client import file_exists, upload_file, list_files, delete_file, download_file, archive_file
-from utils.status_tracker import get_all_statuses, delete_status, get_active_version, supersede_status, reset_stale_processing
+from utils.status_tracker import get_all_statuses, delete_status, supersede_status, reset_stale_processing, save_doc_metadata
 from utils.doc_screening import screen_document, extract_text_sample, clear_flags
 from utils.supabase_admin import supabase
+from utils.doc_metadata import normalize_doc_metadata
 from ingestion.indexer import index_document, SUPPORTED_EXTENSIONS, ALLOWED_CATEGORIES
 from ingestion.vectorstore import delete_document as delete_vectors
 from sync.sync import sync_documents
@@ -120,6 +122,12 @@ def upload():
     if ext not in SUPPORTED_EXTENSIONS:
         return jsonify({"error": f"unsupported file type: {ext}"}), 400
 
+    raw_meta = request.form.get("metadata")
+    try:
+        doc_meta = normalize_doc_metadata(json.loads(raw_meta)) if raw_meta else None
+    except (ValueError, TypeError) as e:
+        return jsonify({"error": f"invalid metadata: {e}"}), 400
+
     if file_exists(category, filename) and not force_replace:
         return jsonify({
             "exists": True,
@@ -173,6 +181,9 @@ def upload():
     supabase.table("document_status").update({
         "approval_status": "pending", "approved_by": None, "approved_at": None
     }).eq("document_id", document_id).execute()
+
+    if doc_meta is not None:
+        save_doc_metadata(document_id, filename, category, doc_meta)
 
     # --- Skenario B: nama file berbeda -> non-aktifkan vector & status versi lama ---
     superseded_id = None
@@ -411,6 +422,29 @@ def download_document():
         return jsonify({
             "error": "failed to download document"
         }), 500
+
+@admin_bp.route("/documents/metadata", methods=["POST"])
+@require_role("Admin")
+def set_metadata():
+    data = request.get_json(silent=True) or {}
+    category = data.get("category")
+    filename = data.get("filename")
+
+    if not category or category not in ALLOWED_CATEGORIES:
+        return jsonify({"error": f"category must be one of {sorted(ALLOWED_CATEGORIES)}"}), 400
+    if not filename or not isinstance(filename, str):
+        return jsonify({"error": "filename is required"}), 400
+    if not file_exists(category, filename):
+        return jsonify({"error": "file not found in storage"}), 404
+
+    try:
+        meta = normalize_doc_metadata(data.get("metadata"))
+    except ValueError as e:
+        return jsonify({"error": f"invalid metadata: {e}"}), 400
+
+    document_id = f"{category}:{Path(filename).stem}"
+    save_doc_metadata(document_id, filename, category, meta)
+    return jsonify({"message": "metadata saved, re-ingest to apply", "document_id": document_id, "metadata": meta}), 200
 
 def _to_wib(iso_timestamp):
     if not iso_timestamp:

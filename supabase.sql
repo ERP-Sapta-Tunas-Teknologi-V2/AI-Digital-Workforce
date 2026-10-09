@@ -245,6 +245,7 @@ create table if not exists public.document_status (
     category text not null,
     status text not null default 'pending',
     detail text,
+    doc_metadata jsonb not null default '{}'::jsonb,
     last_ingested_at timestamptz,
     version_status text not null default 'active',  -- 'active' | 'superseded'
     superseded_by text,   -- document_id versi baru

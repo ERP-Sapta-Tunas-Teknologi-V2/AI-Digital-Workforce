@@ -7,7 +7,7 @@ from ingestion.cleaner import preprocessing
 from ingestion.loader import load_markdown, load_document
 from ingestion.splitter import StructureAwareChunker
 from ingestion.vectorstore import add_documents
-from utils.status_tracker import set_status, get_version_number
+from utils.status_tracker import set_status, get_version_number, get_doc_metadata
 from utils.minio_client import client, object_key
 from utils.logger import log_ingestion
 import config
@@ -24,6 +24,7 @@ def index_document(category: str, filename: str):
     document_id = f"{category}:{Path(filename).stem}"
     uploaded_at = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     version = get_version_number(document_id)
+    extra_metadata = get_doc_metadata(document_id)
     start = time.perf_counter()
 
     try:
@@ -67,6 +68,7 @@ def index_document(category: str, filename: str):
         print("Adding documents...")
         for chunk in chunks:
             chunk.metadata["updated_at"] = updated_at
+            chunk.metadata.update(extra_metadata)
         result = add_documents(chunks)
 
         duration = time.perf_counter() - start
