@@ -13,6 +13,7 @@ class StructureAwareChunker:
     def _scan_injection(self, content):
         for pattern in INJECTION_PATTERNS:
             if re.search(pattern, content, re.IGNORECASE):
+                print(f"[INJECTION] redacted pattern={pattern!r}")
                 content = re.sub(pattern, "[REDACTED]", content, flags=re.IGNORECASE)
         return content
 
