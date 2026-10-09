@@ -39,6 +39,8 @@
                     ▼
               document_status
                     │
+                    ▼
+   Approval (approved + active + belum expired)
                     │
                     ▼
                    RUNTIME
@@ -63,6 +65,7 @@
                     │
                     ▼
                Hybrid Search
+               (filter RBAC + approved)
                     │
                     ▼
         Reranker (Qwen3-Reranker, top 3)

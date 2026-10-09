@@ -43,3 +43,4 @@ Tujuannya adalah mencegah dokumen duplikat atau dokumen yang berpotensi sensitif
 * Pemindaian teks hanya untuk **.pdf dan .docx** (5.000 karakter pertama). `.xlsx` dan `.pptx` hanya diperiksa duplikat.
 * `POST /api/admin/ingest` membalas `409` untuk dokumen `duplicate`/`confidential`, dan Sync melewatinya.
 * Pesan error menyebut "endpoint override", tetapi endpoint tersebut **belum ada**. Saat ini dokumen yang diblokir harus diperbaiki lalu di-upload ulang (screening dijalankan ulang saat upload, flag lama dibersihkan) atau dokumen dihapus.
+* `POST /api/admin/documents/approval` (`action: approve`) juga membalas `409` untuk dokumen `duplicate`/`confidential`. Flag `stale` tidak memblokir ingest maupun approval.

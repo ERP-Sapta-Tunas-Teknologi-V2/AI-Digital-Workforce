@@ -25,7 +25,7 @@ Menyimpan chunk hasil indexing beserta embedding-nya. Digunakan untuk retrieval 
 | ------------- | ------------ | -------- | -------------------- | ----------------------------------------------------------------------------- |
 | `id`          | bigserial    | No       | auto increment       | Primary key.                                                                  |
 | `content`     | text         | Yes      | -                     | Isi teks chunk hasil chunking dokumen.                                        |
-| `metadata`    | jsonb        | Yes      | -                     | Metadata chunk: `category`, `section_title`, `source`, `page`, `uploaded_at`, `version`, dll. |
+| `metadata`    | jsonb        | Yes      | -                     | Metadata chunk: `category`, `section_title`, `source`, `page`, `uploaded_at`, `updated_at`, `version`, serta metadata dokumen opsional (`industry`, `persona`, `competitor`, `products`, `content_type`, `effective_date`), dll. |
 | `document_id` | text         | No       | -                     | Identitas dokumen, format `{category}:{filename_tanpa_ekstensi}`.             |
 | `chunk_index` | int          | No       | -                     | Urutan/index chunk dalam satu dokumen.                                        |
 | `fingerprint` | text         | No       | -                     | SHA-256 dari isi chunk, dipakai untuk skip re-embedding jika konten tidak berubah. |
@@ -121,6 +121,7 @@ Melacak status ingest setiap dokumen, termasuk state versioning (khusus kategori
 | `category`            | text           | No       | -           | Kategori dokumen                     |
 | `status`              | text           | No       | `'pending'` | `not_ingested` / `processing` / `success` / `failed`.                       |
 | `detail`              | text           | Yes      | -           | Pesan tambahan, mis. alasan gagal.                                           |
+| `doc_metadata`        | jsonb          | No       | `'{}'`      | Metadata dokumen opsional (industry, persona, competitor, products, content_type, effective_date); digabung ke metadata chunk saat ingest. Ikut terhapus saat row dihapus. |
 | `last_ingested_at`    | timestamptz    | Yes      | -           | Waktu terakhir proses ingest selesai (`success` atau `failed`).              |
 | `version_status`      | text           | No       | `'active'`  | `active` atau `superseded` (khusus dokumen versi lama yang digantikan).      |
 | `superseded_by`       | text           | Yes      | -           | `document_id` versi baru yang menggantikan baris ini.                        |
@@ -271,6 +272,8 @@ hybrid_score = (1 / (rrf_k + rank_fulltext)) * full_text_weight
 ```
 
 `category_filter` (array kategori) diterapkan pada kedua sisi (full-text dan semantic) sebelum fusion, sehingga chunk dari kategori yang tidak diizinkan tidak pernah ikut proses scoring — mendukung RBAC content filtering (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)). Mengembalikan `id`, `content`, `metadata`, `chunk_index`, `embedding`, `hybrid_score`, `rank_fulltext`, `rank_semantic`. Setiap cabang (full-text/semantic) dibatasi `least(match_count, 30) * 2` kandidat sebelum fusion.
+
+Kedua cabang (full-text dan semantic) juga hanya mencakup chunk yang `document_status`-nya `approval_status = 'approved'`, `version_status = 'active'`, dan belum melewati `expires_at`. Dokumen yang belum di-approve, di-revoke, superseded, expired, atau tidak punya row status tidak pernah ikut pencarian.
 
 ### `delete_expired_interaction_logs()`
 

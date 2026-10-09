@@ -29,6 +29,7 @@ Retrieval-Augmented Generation (RAG) untuk melakukan pencarian dokumen dan mengh
 * Embedding: BGE-M3
 * Document processing: Docling
 * Response: Server-Sent Events (SSE)
+* Frontend: Vue + Vuetify + Pinia (aplikasi terpisah; `static/` adalah widget lama)
 * Distributed lock: Redis
 * Object storage: MinIO
 * Reranker: Qwen3-Reranker-0.6B (sentence-transformers CrossEncoder, in-process, bukan Ollama)
@@ -125,6 +126,8 @@ Supabase / pgvector
 ```
 
 Diagram alur end-to-end lengkap (document management + runtime) tersedia pada [`project-flow.md`](documentation/referensi-teknis/project-flow.md).
+
+Frontend utama adalah aplikasi Vue (modul `digital-workforce`): chat widget dan dashboard admin. Lihat [`frontend.md`](documentation/referensi-teknis/frontend.md).
 
 ---
 
@@ -388,6 +391,7 @@ mc rb --force myminio/knowledge-expert      # hapus bucket beserta isinya
 │   └── contextualizer.py
 ├── utils/
 │   ├── anonymizer.py
+│   ├── doc_metadata.py
 │   ├── doc_screening.py
 │   ├── extensions.py
 │   ├── injection_patterns.py
@@ -917,3 +921,4 @@ Dokumentasi detail tersedia di directory [`documentation/`](documentation):
 * [`performance-sla.md`](documentation/referensi-teknis/performance-sla.md) — performance baseline dan production SLA
 * [`logging.md`](documentation/referensi-teknis/logging.md) — query logging, anonymization, feedback
 * [`project-flow.md`](documentation/referensi-teknis/project-flow.md) — diagram alur end-to-end
+* [`frontend.md`](documentation/referensi-teknis/frontend.md) — frontend Vue (chat & dashboard)

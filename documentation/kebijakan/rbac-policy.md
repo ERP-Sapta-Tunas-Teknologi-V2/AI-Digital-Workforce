@@ -1,9 +1,9 @@
 # RBAC Policy
 
-> ⚠️ **Status implementasi:** Retrieval filtering **belum aktif**. Pada `routes/chat.py`, argumen
-> `allowed_categories=get_allowed_categories(role)` dikomentari, sehingga semua request mengakses seluruh kategori
-> dan `rbac_audit.log` tidak pernah ditulis. `@require_role("Admin")` juga dikomentari di `admin.py` **dan** `analytics.py`.
-> `dashboard.js` mengirim `X-User-Role: Admin` secara hardcode, sedangkan `chat.js` tidak mengirim `X-User-Role`.
+> ⚠️ **Status implementasi:**
+> - Retrieval filtering **aktif**: `routes/chat.py` memanggil `get_allowed_categories(role)`. `rbac_audit.log` ditulis hanya bila filter diterapkan (role dikirim dan bukan `Admin`).
+> - `@require_role("Admin")` **aktif** di `admin.py`, tetapi masih dikomentari di `analytics.py` (`/api/logs/*`, `/api/analytics/*`).
+> - Frontend Vue (`ai-role.ts`) selalu mengirim `X-User-Role` (`Admin` / `Sales` / `Solution Architect`, selain itu `Guest`). Role tetap berbasis klaim, tidak terverifikasi.
 
 ## 1. Objective
 
@@ -30,13 +30,15 @@ Role dikirim oleh client melalui header:
 X-User-Role: <role>
 ```
 
+Frontend Vue memetakan `ai_role` akun ke header: `admin` → `Admin`, `sales` → `Sales`, `solution_architect` → `Solution Architect`, selain itu → `Guest` (hanya kategori publik; lihat `ai-role.ts`).
+
 Tidak ada validasi identitas/login di balik header ini pada implementasi saat ini — lihat [Batasan & Risiko](#7-batasan--risiko).
 
 ---
 
 ## 3. Endpoint Access Control
 
-Berlaku untuk endpoint yang menggunakan decorator `require_role`.
+Berlaku untuk endpoint yang menggunakan decorator `require_role`. Saat ini decorator aktif pada seluruh `/api/admin/*`, tetapi masih dikomentari pada `/api/logs/*` dan `/api/analytics/*`.
 
 | Endpoint | Method | Role yang Diizinkan |
 | --- | --- | --- |
@@ -46,6 +48,8 @@ Berlaku untuk endpoint yang menggunakan decorator `require_role`.
 | `/api/admin/un-ingest` | POST | Admin |
 | `/api/admin/documents/delete` | DELETE | Admin |
 | `/api/admin/documents/download` | GET | Admin |
+| `/api/admin/documents/approval` | POST | Admin |
+| `/api/admin/documents/metadata` | POST | Admin |
 | `/api/admin/sync` | POST | Admin |
 | `/api/logs/export` | GET | Admin |
 | `/api/logs/top-faq` | GET | Admin |
@@ -98,9 +102,10 @@ Membatasi kategori dokumen yang boleh digunakan sebagai konteks retrieval berdas
 
 | Kondisi | Kategori yang Diizinkan |
 | --- | --- |
-| Header `X-User-Role` **tidak dikirim** | Tidak difilter — seluruh kategori diizinkan (perilaku legacy, dipakai widget chat publik) |
-| Header `X-User-Role` **dikirim** dengan role dikenal | Sesuai matrix pada 4.1 |
-| Header `X-User-Role` **dikirim** dengan role tidak dikenal (termasuk `Admin` atau string kosong) | Hanya kategori "Semua role": general, sop, case, training, proposal, competitive, sow |
+| Header `X-User-Role` **tidak dikirim** | Tidak difilter — seluruh kategori diizinkan (perilaku legacy; frontend Vue tidak lagi mengirim request tanpa header) |
+| Header `X-User-Role` **dikirim** dengan role `Sales` / `Solution Architect` | Sesuai matrix pada 4.1 |
+| Header `X-User-Role: Admin` | Tidak difilter — seluruh kategori diizinkan (`get_allowed_categories` mengembalikan `None`); tidak ditulis ke `rbac_audit.log` |
+| Header `X-User-Role` **dikirim** dengan role tidak dikenal (termasuk `Guest` dari frontend, atau string kosong) | Hanya kategori "Semua role": general, sop, case, training, proposal, competitive, sow |
 
 ### 4.3 Titik Penerapan
 
@@ -200,9 +205,9 @@ Keempatnya saling melengkapi dan tidak menggantikan satu sama lain. CORS dan rat
 ## 7. Batasan & Risiko
 
 1. **Role tidak diverifikasi.** Header `X-User-Role` dapat dikirim oleh siapa saja tanpa proses login/token. Siapa pun yang tahu cara mengisi header dapat mengklaim role manapun. RBAC saat ini bersifat **kontrol akses berbasis klaim (claim-based)**, bukan kontrol akses yang terautentikasi penuh.
-2. **Endpoint chat publik tanpa role = tanpa filter.** Karena tujuan desain saat ini adalah mendukung widget chat publik di `/` tanpa login, permintaan tanpa header `X-User-Role` **tidak difilter sama sekali** dan dapat mengakses seluruh kategori dokumen, termasuk Pricelist dan Meeting Notes. Ini adalah keputusan desain sementara, bukan default yang aman (secure-by-default) — perlu direview sebelum kategori sensitif baru ditambahkan.
-3. **Decorator `require_role` non-aktif** di `admin.py` dan `analytics.py`. Endpoint admin dan analytics dapat diakses tanpa role sampai decorator diaktifkan kembali di kode.
-4. **RBAC retrieval filter non-aktif** di `chat.py` (lihat banner status di atas).
+2. **Endpoint chat publik tanpa role = tanpa filter.** Karena tujuan desain saat ini adalah mendukung widget chat publik di `/` tanpa login, permintaan tanpa header `X-User-Role` **tidak difilter sama sekali** dan dapat mengakses seluruh kategori dokumen, termasuk Pricelist dan Meeting Notes. Ini adalah keputusan desain sementara, bukan default yang aman (secure-by-default) — perlu direview sebelum kategori sensitif baru ditambahkan. Frontend Vue sudah selalu mengirim header, tetapi klien lain (curl/Postman) tetap bisa menghilangkan header untuk melewati filter.
+3. **Decorator `require_role` masih non-aktif di `analytics.py`.** Endpoint `/api/logs/*` dan `/api/analytics/*` dapat diakses tanpa role (hanya `admin.py` yang sudah aktif).
+4. **Role `Admin` melewati filter kategori** (`get_allowed_categories` → `None`). Karena role hanya klaim, siapa pun yang mengirim `X-User-Role: Admin` dapat membaca seluruh kategori lewat `/api/chat` dan memanggil endpoint admin.
 5. **`GET /api/sessions/all` mengembalikan semua session ke siapa pun**, dan `GET/DELETE /api/sessions/<id>` tanpa validasi ownership.
 6. **`GET /api/sources/download` publik dan tidak melewati RBAC kategori.** Siapa pun yang tahu `category` dan `filename` bisa mengunduh dokumen apa pun, termasuk Pricelist.
 7. **Rekomendasi jangka panjang:** ganti header `X-User-Role` dengan token terautentikasi (misalnya JWT/session yang divalidasi backend) agar role tidak dapat dipalsukan oleh client, karena saat ini role hanya berbasis klaim tanpa verifikasi identitas.

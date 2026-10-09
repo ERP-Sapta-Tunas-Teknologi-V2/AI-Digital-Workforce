@@ -1,5 +1,7 @@
 # Audit Knowledge Expert untuk Sales Copilot
 
+> **Update 9 Oktober 2026:** G-04 (RBAC Python) dan G-03 (tanggal citation) sudah diperbaiki; G-01 (PPTX) teratasi sebagian. Yang masih terbuka: G-02, G-05, G-06, serta chart/diagram/gambar pada PPTX. Verdict tetap **CONDITIONAL REUSE**.
+
 ## 1. Tujuan
 
 Melakukan audit terhadap RAG pipeline yang digunakan oleh Knowledge Expert untuk menentukan apakah pipeline tersebut dapat digunakan kembali sebagai fondasi **Sales Copilot** tanpa membuat pipeline RAG baru.
@@ -48,23 +50,26 @@ Namun, terdapat beberapa gap yang harus diperbaiki atau divalidasi sebelum Sales
 | PDF ingestion | PASS | Pipeline preprocessing dan loading PDF dapat digunakan kembali. |
 | DOCX ingestion | PASS | DOCX dikonversi ke PDF kemudian diproses melalui pipeline yang sudah ada. |
 | XLSX ingestion | PASS | XLSX didukung melalui Docling dan `split_docling()`. |
-| PPTX ingestion | GAP | Parser saat ini terutama mengambil `shape.text`; tabel, grouped shapes, notes, gambar, dan konten terstruktur lainnya dapat terlewat. |
+| PPTX ingestion | PARTIAL | `pptx_to_md()` kini mengambil teks, tabel (Markdown), grouped shapes, dan speaker notes. Chart, diagram, dan gambar masih terlewat. |
 | Table chunking | PASS | Tabel berukuran besar dapat dipecah menjadi beberapa chunk dengan header tabel tetap dipertahankan. |
 | Page metadata | PASS | Informasi halaman disimpan dalam metadata chunk. |
 | Section metadata | PASS | Judul section disimpan dalam metadata chunk. |
 | Citation mechanism | PASS | Retrieved document membawa source, page, category, section, version, dan citation metadata. |
-| Citation date | GAP | `uploaded_at` dibuat saat proses indexing sehingga menunjukkan waktu ingestion, bukan waktu efektif/update dokumen. |
+| Citation date | PASS (diperbaiki) | `retriever.py` memakai `effective_date` (metadata) → `updated_at` (modifikasi file MinIO) → `uploaded_at` (waktu ingest). Admin perlu mengisi `effective_date` untuk Pricelist. |
 | Image content | GAP | Picture block tidak dimasukkan ke chunk dan image-to-text saat ini tidak aktif. |
 | Injection scanning | NEEDS VALIDATION | Beberapa pattern dapat cocok dengan bahasa Sales yang legitimate seperti `act as`, `pretend`, atau `answer exactly`. |
 | Sales categories | PASS | Kategori `pricelist`, `case`, `proposal`, `competitive`, dan `datasheet` sudah tersedia. |
 | RBAC configuration | PASS | `CATEGORY_ACCESS` sudah mendefinisikan akses kategori untuk role Sales dan Solution Architect. |
 | RBAC SQL filtering | PASS | `hybrid_search()` menerapkan `category_filter` pada full-text dan semantic retrieval. |
-| RBAC Python integration | GAP | `role` diteruskan ke `hybrid_retrieve()`, tetapi `get_allowed_categories(role)` belum dipanggil. |
+| RBAC Python integration | PASS (diperbaiki) | `routes/chat.py` kini memanggil `get_allowed_categories(role)`. `Admin` tidak difilter; role tidak dikenal (mis. `Guest`) hanya kategori publik. |
 | Source download authorization | NEEDS REVIEW | Endpoint `/sources/download` belum terlihat menerapkan authorization berdasarkan role/category. |
 
 ## 5. Gap yang Telah Dikonfirmasi
 
 ### G-01 — Ekstraksi PPTX masih terbatas
+
+**Status (update):** sebagian teratasi. Tabel, grouped shapes, dan speaker notes sudah diekstrak; chart, diagram, dan gambar belum.
+
 
 `pptx_to_md()` saat ini terutama mengambil `shape.text`.
 
@@ -103,6 +108,9 @@ Informasi yang hanya terdapat di dalam diagram, screenshot, chart, atau gambar t
 
 ### G-03 — Tanggal citation merupakan waktu ingestion
 
+**Status (update):** teratasi. Retriever memakai `effective_date` → `updated_at` → `uploaded_at`. Deskripsi di bawah adalah kondisi saat audit.
+
+
 Pada `indexer.py`, nilai berikut dibuat ketika dokumen di-index:
 
 ```python
@@ -128,6 +136,9 @@ User dapat menganggap tanggal ingestion sebagai tanggal efektif/update dokumen.
 ---
 
 ### G-04 — RBAC belum diterapkan pada Python retrieval path
+
+**Status (update):** teratasi. `allowed_categories=get_allowed_categories(role)` kini aktif di `routes/chat.py`. Deskripsi di bawah adalah kondisi saat audit.
+
 
 Konfigurasi RBAC sudah tersedia dan SQL `hybrid_search()` sudah mendukung filtering berdasarkan kategori.
 
@@ -271,11 +282,11 @@ Gunakan Knowledge Expert sebagai fondasi Sales Copilot.
 
 Prioritas perbaikan:
 
-1. Hubungkan `role` dengan `get_allowed_categories()` pada retrieval path.
+1. ✅ Selesai — hubungkan `role` dengan `get_allowed_categories()` pada retrieval path.
 2. Pastikan authorization pada source download mengikuti RBAC.
-3. Validasi dan tingkatkan ekstraksi PPTX.
+3. Validasi dan tingkatkan ekstraksi PPTX (sebagian selesai: tabel, grouped shapes, notes).
 4. Validasi injection scanning menggunakan dokumen Sales nyata.
-5. Gunakan tanggal efektif/update dokumen yang sebenarnya untuk citation, bukan timestamp ingestion.
+5. ✅ Selesai — gunakan tanggal efektif/update dokumen yang sebenarnya untuk citation.
 
 ## 10. Kriteria Penyelesaian T0.1
 

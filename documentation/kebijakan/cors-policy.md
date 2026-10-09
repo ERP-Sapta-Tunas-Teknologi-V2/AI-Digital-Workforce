@@ -29,7 +29,7 @@ CORS diterapkan pada endpoint API:
 
 CORS diterapkan pada seluruh `/api/*` (Flask-CORS default: GET, POST, PUT, PATCH, DELETE, OPTIONS). Pembatasan method per endpoint dilakukan oleh route masing-masing.
 
-Preflight `OPTIONS` digunakan oleh browser apabila diperlukan.
+Preflight `OPTIONS` digunakan oleh browser apabila diperlukan. Frontend Vue mengirim header kustom `X-User-Role`, sehingga request lintas-origin selalu memicu preflight (Flask-CORS secara default mengizinkan header request apa pun).
 
 ## Disallowed Origins
 

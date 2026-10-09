@@ -29,7 +29,7 @@ Body:
 | `session_id` | string | Tidak    | ID session. Jika kosong/tidak ditemukan, session baru dibuat  |
 | `user_id`    | string | Tidak    | Identifier user, disimpan pada session (belum diverifikasi)   |
 
-Header opsional: `X-User-Role` (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)).
+Header opsional: `X-User-Role` (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)). Frontend Vue selalu mengirimnya (`Admin`/`Sales`/`Solution Architect`/`Guest`): `Admin` tidak difilter, role tidak dikenal hanya mengakses kategori publik, tanpa header = tanpa filter (legacy).
 Rate limit: 10 request/menit/IP → `429`.
 
 ### Validation
@@ -216,6 +216,8 @@ Contoh:
 
 Frontend dapat menggunakan `source` untuk menampilkan nama dokumen sumber, dan `citation` untuk mencocokkan nomor sitasi pada teks jawaban.
 
+Field `updated_at` (waktu modifikasi file di MinIO) dan `effective_date` (opsional, dari metadata dokumen) ikut dikirim bila tersedia. Tanggal efektif pada jawaban = `effective_date` → `updated_at` → `uploaded_at` (waktu ingest).
+
 Field internal berikut tidak perlu digunakan oleh frontend:
 
 ```text
@@ -278,6 +280,8 @@ Jika terjadi error pada backend:
 ```
 
 ## Frontend Integration
+
+Implementasi referensi (Vue + Pinia): [`frontend.md`](../referensi-teknis/frontend.md).
 
 FE widget hanya perlu berkomunikasi dengan satu endpoint:
 
@@ -446,6 +450,8 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | `/api/admin/documents`                    | GET         | Admin*           | -          |
 | `/api/admin/documents/download`           | GET         | Admin*           | -          |
 | `/api/admin/documents/delete`             | DELETE      | Admin*           | -          |
+| `/api/admin/documents/approval`           | POST        | Admin*           | -          |
+| `/api/admin/documents/metadata`           | POST        | Admin*           | -          |
 | `/api/admin/ingest`                       | POST        | Admin*           | -          |
 | `/api/admin/un-ingest`                    | POST        | Admin*           | -          |
 | `/api/admin/sync`                         | POST        | Admin*           | -          |
@@ -456,7 +462,7 @@ Parameter retrieval merupakan konfigurasi internal backend dan tidak perlu dikir
 | `/api/analytics/dashboard-summary`        | GET         | Admin*           | -          |
 | `/`, `/dashboard`                         | GET         | Public (halaman) | -          |
 
-\* `@require_role("Admin")` saat ini dikomentari di `admin.py` dan `analytics.py` (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)).
+\* `@require_role("Admin")` **aktif** di `admin.py`, tetapi masih dikomentari di `analytics.py` (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)). Detail approval dan metadata: [`admin-endpoints.md`](admin-endpoints.md).
 
 ## POST /api/admin/ingest
 
@@ -606,7 +612,7 @@ Proses berjalan secara asynchronous (background thread). Endpoint langsung menge
 }
 ```
 
-> Respons `401`/`403` untuk endpoint admin tidak berlaku sampai decorator `require_role` diaktifkan kembali.
+> Respons `401`/`403` berlaku untuk `/api/admin/*`. Untuk `/api/logs/*` dan `/api/analytics/*` belum berlaku sampai decorator diaktifkan kembali di `analytics.py`.
 
 ---
 
@@ -772,7 +778,7 @@ Satu `request_id` hanya dapat memiliki satu feedback. Mengirim feedback baru unt
 
 ## Sessions (Sidebar)
 
-Endpoint pendukung fitur riwayat percakapan pada sidebar widget chat. Frontend chat saat ini memakai `GET /api/sessions/all` (mode localStorage dikomentari di `chat.js`); endpoint ini tidak melakukan validasi ownership (lihat [`session.md`](../kebijakan/session.md#75-sidebar-riwayat-percakapan)).
+Endpoint pendukung fitur riwayat percakapan pada sidebar widget chat. Frontend Vue memakai `POST /api/sessions` (filter `user_id`), `POST /api/sessions/search`, `GET /api/sessions/{id}`, dan `DELETE /api/sessions/{id}`; `GET /api/sessions/all` hanya dipakai widget statis lama. Endpoint tidak melakukan validasi ownership (lihat [`session.md`](../kebijakan/session.md#75-sidebar-riwayat-percakapan)).
 
 ### POST /api/sessions
 
@@ -797,7 +803,7 @@ Body:
 | --------- | ------ | -------- | ----------------------------------------------- |
 | `user_id` | string | Ya       | Mengembalikan session milik `user_id` tersebut |
 
-> Frontend chat saat ini memakai `GET /api/sessions/all`, bukan endpoint ini.
+> Dipakai sidebar frontend Vue. `user_id` berasal dari body request dan tidak diverifikasi.
 
 #### Response
 
@@ -849,6 +855,7 @@ Mencari session berdasarkan isi pesan (case-insensitive, `ILIKE`).
 | Parameter | Type   | Required | Description                          |
 | --------- | ------ | -------- | ------------------------------------- |
 | `query`   | string | Yes      | Teks pencarian, maksimal 200 karakter |
+| `user_id` | string | No       | Jika dikirim, pencarian dibatasi pada session milik `user_id` tersebut |
 
 #### Response
 
@@ -1080,7 +1087,7 @@ GET /api/sources/download?category=datasheet&filename=example.pdf
 
 ## Analytics Endpoints — Error Response (Umum)
 
-Berlaku untuk seluruh endpoint `/api/logs/*`:
+Berlaku untuk `/api/logs/*` dan `/api/analytics/*` (saat ini belum aktif karena decorator dikomentari di `analytics.py`). Endpoint `/api/admin/*` memakai respons yang sama dan sudah aktif:
 
 `401 Unauthorized` — role tidak dikirim:
 

@@ -477,12 +477,11 @@ Client (localStorage)
 
 Konsekuensinya, `session_id` harus tetap diperlakukan sebagai identifier sensitif (lihat [10.2](#102-session-id)) karena siapa pun yang mengetahui `session_id` dapat mengambil maupun menghapus riwayatnya melalui endpoint terkait, tanpa validasi ownership.
 
-> ⚠️ **Implementasi saat ini:** `chat.js` memanggil `GET /api/sessions/all` (kode berbasis localStorage dikomentari),
-> sehingga sidebar menampilkan **semua** session semua pengguna, bukan hanya milik browser tersebut.
+> ⚠️ **Implementasi saat ini:** frontend Vue memanggil `POST /api/sessions` dan `POST /api/sessions/search` dengan `user_id` (dari body, **tidak diverifikasi**). Widget statis lama (`chat.js`) masih memakai `GET /api/sessions/all`, yang menampilkan **semua** session semua pengguna.
 
 ## 7.5.2 Judul Percakapan
 
-Judul (`title`) diisi otomatis dari potongan pertanyaan pertama user (maksimal 40 karakter) saat session baru dibuat, dan ditampilkan pada sidebar untuk membedakan setiap percakapan. Judul diambil dari pertanyaan **mentah** (belum di-anonymize).
+Judul (`title`) diisi otomatis dari potongan pertanyaan pertama user (maksimal 40 karakter) saat session baru dibuat, dan ditampilkan pada sidebar untuk membedakan setiap percakapan. Judul diambil dari pertanyaan yang **sudah di-anonymize** (`safe_query`).
 
 ## 7.5.3 Sumber pada Riwayat Pesan
 
@@ -496,8 +495,8 @@ Pesan `user` dan jawaban fallback (`"Informasi tidak ditemukan..."`) tidak memil
 
 | Endpoint                    | Method | Fungsi                                                          |
 | --------------------------- | ------ | --------------------------------------------------------------- |
-| `POST /api/sessions`        | POST   | Metadata session milik `user_id` (body: `{"user_id": "..."}`)   |
-| `GET /api/sessions/all`     | GET    | Seluruh session terbaru (dipakai sidebar saat ini)              |
+| `POST /api/sessions`        | POST   | Metadata session milik `user_id` (dipakai sidebar Vue)          |
+| `GET /api/sessions/all`     | GET    | Seluruh session terbaru (hanya widget statis lama)              |
 | `POST /api/sessions/search` | POST   | Cari session berdasarkan isi pesan (ILIKE, maks. 200 karakter)  |
 | `GET /api/sessions/<id>`    | GET    | Riwayat pesan satu session (10 pesan terakhir)                  |
 | `DELETE /api/sessions/<id>` | DELETE | Hapus session beserta pesannya (cascade)                        |

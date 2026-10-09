@@ -33,7 +33,7 @@ Alur preprocessing per format:
 | ------ | ---- |
 | `.pdf`  | pymupdf4llm → Markdown per halaman → Docling |
 | `.docx` | LibreOffice (headless) → PDF → pymupdf4llm → Docling |
-| `.pptx` | python-pptx (teks per slide) → Docling |
+| `.pptx` | python-pptx (teks, tabel → Markdown, grouped shape, speaker notes per slide) → Docling |
 | `.xlsx` | Docling langsung (tanpa Markdown) |
 
 Setelah chunking: Fingerprint → BGE-M3 → Supabase/pgvector.
@@ -52,6 +52,8 @@ Catatan:
 * Saat chunking, teks yang cocok `INJECTION_PATTERNS` diganti `[REDACTED]`. Pola longgar seperti `act as`, `pretend`, `disregard` bisa mengubah isi dokumen teknis yang sah.
 * `document_id = {category}:{nama_tanpa_ekstensi}`. `a.pdf` dan `a.docx` di kategori yang sama **bertabrakan**.
 * Ekstraksi gambar (`describe_image`) saat ini dinonaktifkan (dikomentari di `cleaner.py`).
+* Metadata chunk menyertakan `updated_at` (modifikasi file di MinIO) dan metadata dokumen opsional dari `document_status.doc_metadata` (lihat [`admin-endpoints.md`](admin-endpoints.md#metadata-dokumen)).
+* Ingest/sync tidak meng-approve dokumen. Chatbot hanya memakai dokumen berstatus `approved` dan `active` (lihat [`dashboard.md`](dashboard.md)).
 
 Untuk indexing dokumen individual yang sudah tersimpan di MinIO, gunakan endpoint `/api/admin/ingest` (lihat [`admin-endpoints.md`](admin-endpoints.md)) atau Dashboard Dokumen (lihat [`dashboard.md`](dashboard.md)).
 
@@ -94,7 +96,7 @@ Contoh output:
 
 Dokumen `New` dan `Existing` akan diproses melalui indexing. Fingerprint digunakan untuk melewati chunk yang tidak mengalami perubahan.
 
-Dokumen yang sudah tidak terdapat pada source akan dihapus dari vector database berdasarkan `document_id`.
+Dokumen yang sudah tidak terdapat pada source akan dihapus dari vector database berdasarkan `document_id`. Sync tidak mengubah `approval_status`.
 
 Untuk operasi individual, gunakan Dashboard Dokumen:
 

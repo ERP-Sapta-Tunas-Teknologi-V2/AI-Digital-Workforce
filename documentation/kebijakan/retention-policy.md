@@ -169,7 +169,7 @@ Mekanisme anonymization harus direview secara berkala karena pattern-based anony
 
 Jawaban chatbot (`answer`) dihasilkan dari knowledge base internal dan tidak diharapkan memuat PII pengguna, namun tetap tunduk pada retensi bertingkat yang sama dengan baris `interaction_logs` yang menyimpannya.
 
-`response_feedback.reason` (teks bebas) dan `sessions.title` saat ini **tidak** di-anonymize. Debug `print` di `routes/chat.py` (RAW BODY, JSON, history) dan `retriever.py` mencetak query mentah ke stdout; ini bertentangan dengan aturan application log di atas dan perlu dihapus sebelum production.
+`response_feedback.reason` (teks bebas) saat ini **tidak** di-anonymize. `sessions.title` kini dibentuk dari query yang sudah di-anonymize (40 karakter pertama), namun anonymization tetap berbasis pola. Debug `print` untuk body mentah sudah tidak ada, tetapi `routes/chat.py` masih mencetak history, question, dan contextual_question, dan `retriever.py` mencetak `retrieval_question` ke stdout (semuanya turunan query yang sudah di-anonymize). Print ini perlu dihapus atau diganti logger terkontrol sebelum production.
 
 ---
 

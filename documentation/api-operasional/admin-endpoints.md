@@ -8,7 +8,7 @@ Akses endpoint dibatasi untuk role:
 Admin
 ```
 
-> ⚠️ `@require_role("Admin")` saat ini dikomentari pada seluruh endpoint di `admin.py`.
+> `@require_role("Admin")` **aktif** pada seluruh endpoint di `admin.py`: tanpa `X-User-Role` → `401`, role selain `Admin` → `403`. (Pada `/api/logs/*` dan `/api/analytics/*` decorator masih dikomentari.)
 
 ## Upload Dokumen
 
@@ -25,6 +25,7 @@ Form fields:
 | `category` | ya       | Salah satu dari kategori di [Sync satu category](#sync-satu-category) |
 | `replace`  | tidak    | `true` untuk menimpa file yang sudah ada      |
 | `supersedes` | tidak  | Khusus kategori **Pricelist**: nama file lama yang digantikan versi baru ini (Cara 2, lihat [`versioning.md`](../kebijakan/versioning.md)) |
+| `metadata` | tidak | JSON string metadata dokumen (lihat [Metadata Dokumen](#metadata-dokumen)). Tidak valid → `400` `invalid metadata: ...` |
 
 Jika file dengan nama yang sama sudah ada dan `replace` bukan `true`, response `409 Conflict`:
 
@@ -41,7 +42,7 @@ Untuk kategori pada `VERSIONED_CATEGORIES` (saat ini: `pricelist`), upload menja
 - **Nama file berbeda + `supersedes`** (Cara 2, eksplisit): vector lama dihapus, status lama `superseded`.
 - **Nama file berbeda tanpa `supersedes`**: satu versi aktif → otomatis `superseded`; lebih dari satu → `409` + `active_versions`.
 
-Untuk kategori non-versioned, `replace=true` hanya menimpa file di MinIO. Vector dan status lama tetap ada sampai dokumen di-ingest ulang.
+Untuk kategori non-versioned, `replace=true` menimpa file di MinIO dan mengembalikan `approval_status` ke `pending`. Vector dan status ingest lama tetap ada sampai dokumen di-ingest ulang, tetapi dokumen **tidak dipakai chatbot** sampai di-approve ulang.
 
 Jika berhasil:
 
@@ -205,6 +206,55 @@ Untuk `action = reject`, nilai `message` adalah `"rejected"`.
 ```json
 { "error": "document flagged as ['duplicate'], cannot be approved" }
 ```
+
+## Metadata Dokumen
+
+Metadata opsional untuk membantu retrieval Sales (battlecard, objection, per industri/persona). Disimpan di `document_status.doc_metadata` dan digabung ke metadata setiap chunk saat ingest.
+
+```http
+POST /api/admin/documents/metadata
+Content-Type: application/json
+```
+
+Body:
+
+```json
+{
+  "category": "competitive",
+  "filename": "battlecard_dell.pptx",
+  "metadata": {
+    "industry": ["fsi"],
+    "persona": ["cio", "procurement"],
+    "competitor": ["dell"],
+    "products": ["poweredge"],
+    "content_type": "battlecard",
+    "effective_date": "2026-09-01"
+  }
+}
+```
+
+| Field | Nilai |
+| ----- | ----- |
+| `industry` | `fsi`, `manufaktur`, `healthcare`, `media`, `other` (boleh lebih dari satu) |
+| `persona` | `cio`, `manager`, `procurement`, `staff_it` (boleh lebih dari satu) |
+| `competitor`, `products` | teks bebas (string atau list) |
+| `content_type` | `battlecard` atau `objection` |
+| `effective_date` | `YYYY-MM-DD`; dipakai sebagai "tanggal efektif" pada jawaban |
+
+Nilai dinormalisasi (lowercase, unik, terurut). Key di luar daftar ditolak agar tidak menimpa metadata chunk (`source`, `page`, `category`, dst.).
+
+Response `200 OK`:
+
+```json
+{ "message": "metadata saved, re-ingest to apply", "document_id": "competitive:battlecard_dell", "metadata": {} }
+```
+
+Error: `400` (kategori/filename/metadata tidak valid), `404` (file tidak ada di MinIO).
+
+Catatan:
+
+* Metadata baru berlaku setelah **Ingest** ulang. Chunk yang fingerprint-nya sama tidak di-embed ulang, hanya metadata-nya diperbarui.
+* Un-ingest (dan replace Pricelist cara 1) menghapus row `document_status`, sehingga `doc_metadata` ikut hilang. Kirim ulang metadata setelahnya.
 
 ## Ingest Endpoint
 

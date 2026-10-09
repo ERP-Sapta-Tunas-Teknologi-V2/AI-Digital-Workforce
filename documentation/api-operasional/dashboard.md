@@ -1,26 +1,29 @@
 # Dashboard Dokumen
 
-Dashboard dokumen digunakan oleh Admin untuk mengelola file knowledge base yang tersimpan di MinIO dan mengatur proses indexing ke Supabase/pgvector.
+Dashboard digunakan oleh Admin untuk mengelola file knowledge base yang tersimpan di MinIO, mengatur proses indexing ke Supabase/pgvector, menyetujui dokumen untuk chatbot, dan memantau kualitas jawaban.
 
-Dashboard tersedia pada:
+Dashboard utama adalah frontend Vue pada route:
 
 ```text
-/dashboard
+/digital-workforce/dashboard
 ```
 
-Frontend dashboard menggunakan Vanilla HTML, CSS, dan JavaScript.
+(menu **Dashboard** pada sidebar chat). Flask juga masih menyajikan dashboard statis lama (Vanilla HTML/CSS/JS) pada `/dashboard`; dokumen ini mengacu pada dashboard Vue. Detail frontend: [`frontend.md`](../referensi-teknis/frontend.md).
 
-Dashboard memiliki 5 halaman:
+## Panel
 
-| Menu               | Fungsi                                                                 |
-| ------------------ | ---------------------------------------------------------------------- |
-| Ringkasan          | Total pertanyaan, total feedback, % feedback positif, grafik volume, dokumen paling sering dirujuk (`dashboard-summary`) |
-| Dokumen            | Upload, ingest, un-ingest, unduh, hapus, Sync Semua                    |
-| Top FAQ            | `GET /api/logs/top-faq` (rentang 7/30/90 hari, jumlah 5/10/20)         |
-| Jawaban Bermasalah | `GET /api/analytics/problematic-answers` (min. downvote 1–3)           |
-| Dokumen Ditandai   | `GET /api/analytics/flagged-documents`                                 |
+| Panel (komponen)                        | Fungsi |
+| --------------------------------------- | ------ |
+| Ringkasan (`DashboardOverview`)         | Periode 7/14/30/90 hari; total query, total feedback, % feedback positif, jumlah dokumen teratas; grafik volume query; tabel dokumen paling sering dirujuk (`dashboard-summary`) |
+| Dokumen (`DashboardDocument`)           | Upload, approve/revoke, ingest, un-ingest, unduh, hapus |
+| Top FAQ (`DashboardTopFaq`)             | `GET /api/logs/top-faq` (rentang 7/14/30/90 hari, limit 5) |
+| Jawaban Bermasalah (`DashboardProblematic`) | `GET /api/analytics/problematic-answers` (min. downvote bebas diisi; klik baris untuk melihat jawaban dan alasan) |
+| Dokumen Ditandai (`DashboardFlagged`)   | `GET /api/analytics/flagged-documents` (rasio ≥ 0,5 merah, ≥ 0,2 kuning) |
+| Export Log (`DashboardExport`)          | `GET /api/logs/export` dengan rentang tanggal start/end → `interaction_logs.csv` |
 
-Tombol **Ekspor Log CSV** tersedia di topbar (`GET /api/logs/export`).
+## Akses & Role
+
+Setiap request dashboard mengirim `X-User-Role` dari role AI akun yang login (`getRoleHeader()`, bukan hardcode). Akun non-Admin mendapat `403` pada `/api/admin/*`. Endpoint `/api/logs/*` dan `/api/analytics/*` belum dibatasi (lihat [`rbac-policy.md`](../kebijakan/rbac-policy.md)).
 
 ## Upload Dokumen
 
@@ -28,8 +31,10 @@ User dapat:
 
 1. Memilih file.
 2. Memilih category.
-3. Mengupload file.
-4. File disimpan ke MinIO menggunakan struktur:
+3. (Opsional) mengisi metadata dan opsi replace/supersedes.
+4. Mengupload file.
+
+File disimpan ke MinIO dengan struktur:
 
 ```text
 knowledge-expert/
@@ -58,24 +63,34 @@ datasheet
 sow
 ```
 
-Jika file sudah ada, server membalas `409`. User harus mencentang **Ganti jika sudah ada** lalu upload ulang. Dashboard belum mengirim parameter `supersedes` (khusus Pricelist dengan banyak versi aktif, gunakan API langsung).
+Field pada dialog upload:
+
+| Field | Keterangan |
+| ----- | ---------- |
+| File, Category | Wajib |
+| Replace jika sudah ada | Menimpa file dengan nama sama. Tanpa ini server membalas `409`, dan dialog menampilkan tombol **Ya, Replace** |
+| Supersedes filename | Opsional, khusus Pricelist dengan nama file baru yang berbeda (lihat [`versioning.md`](../kebijakan/versioning.md)) |
+| Content type, Industri, Persona, Kompetitor, Tanggal efektif | Metadata opsional (lihat [`admin-endpoints.md`](admin-endpoints.md#metadata-dokumen)) |
+
+Jika dokumen ter-flag saat screening (duplicate/confidential), file tetap tersimpan dan dialog menampilkan peringatan; dokumen tidak bisa di-ingest sebelum diperbaiki (lihat [`screening.md`](../kebijakan/screening.md)).
 
 ## Daftar Dokumen
 
 Dashboard menampilkan:
 
 ```text
-Nama File
-Kategori
+Filename
+Category
 Status
-Versi
+Approval
+Version
 Flags
-Diunggah
-Terakhir Ingest
-Aksi
+Uploaded (WIB)
+Last Ingested (WIB)
+Action
 ```
 
-Aksi: Ingest, Un-ingest, Unduh, Hapus. Status tambahan: `superseded`. Badge `arsip` ditampilkan untuk file di `_archive/`.
+Aksi (menu titik tiga): **Approve** / **Revoke**, **Ingest** / **Un-ingest** (bergantung status), **Download**, **Delete** (dengan konfirmasi). Tombol **Sync** pada panel dikomentari (disembunyikan); sync dijalankan melalui API.
 
 Waktu ditampilkan dalam zona waktu:
 
@@ -92,6 +107,8 @@ success
 failed
 ```
 
+Status approval: `pending`, `approved`, `rejected`, serta `expired` bila melewati `expires_at`. Kolom Version menampilkan `active` atau `superseded`. Dokumen di `_archive/` ditandai arsip.
+
 Contoh:
 
 ```text
@@ -99,10 +116,24 @@ example.pdf
 Category       : datasheet
 Uploaded       : 2026-09-08 09:30:00 WIB
 Status         : success
+Approval       : approved
 Last ingested  : 2026-09-08 09:35:00 WIB
 ```
 
 Status berasal dari tabel `document_status` pada Supabase.
+
+## Approval Dokumen
+
+Chatbot hanya memakai dokumen yang **sudah di-ingest dan `approved`**, `active`, serta belum expired (filter pada `hybrid_search`). Dokumen baru berstatus `pending`.
+
+```text
+Upload → Ingest (success) → Approve → dipakai chatbot
+```
+
+* **Approve** ditolak (`409`) untuk dokumen ber-flag `duplicate`/`confidential`.
+* **Revoke** mengubah status menjadi `rejected`; vector tidak dihapus tetapi tidak ikut pencarian.
+* Urutan Ingest dan Approve bebas; keduanya wajib terpenuhi.
+* Dialog dashboard belum mengirim `expires_at`; gunakan API bila dokumen perlu kedaluwarsa otomatis.
 
 ## Ingest Dokumen
 
@@ -150,11 +181,11 @@ processing
 failed
 ```
 
-Dashboard me-refresh daftar sekali ±1,5 detik setelah ingest dimulai. Tidak ada polling; status selanjutnya (`success`/`failed`) dilihat dengan membuka ulang halaman Dokumen atau mengganti filter/tab.
+Dashboard me-refresh daftar sekali ±1,5 detik setelah ingest dimulai. Tidak ada polling; status selanjutnya (`success`/`failed`) dilihat dengan menekan tombol refresh pada panel.
 
 ## Un-ingest Dokumen
 
-Un-ingest digunakan untuk menghapus hasil indexing tanpa menghapus file sumber dari MinIO.
+Un-ingest menghapus hasil indexing tanpa menghapus file sumber dari MinIO.
 
 ```text
 Un-ingest
@@ -169,20 +200,14 @@ Vector chunks dihapus
 
 document_status
    ↓
-Status dihapus
+Row dihapus (termasuk approval dan doc_metadata)
 ```
 
-Setelah un-ingest, dokumen kembali berstatus:
-
-```text
-not_ingested
-```
-
-File tetap tersedia di MinIO dan dapat di-ingest kembali.
+Setelah un-ingest, dokumen kembali berstatus `not_ingested`. Untuk dipakai lagi: Ingest ulang, lalu **Approve** ulang (dan isi ulang metadata bila ada).
 
 ## Hapus Dokumen
 
-Hapus dokumen digunakan untuk menghapus file sumber dan seluruh data indexing-nya.
+Hapus dokumen menghapus file sumber dan seluruh data indexing-nya.
 
 ```text
 Delete
@@ -195,50 +220,52 @@ Supabase / pgvector
    ↓
 Vector chunks dihapus
 
-document_status
+document_status + document_flags
    ↓
-Status dihapus
+Dihapus
 ```
 
 Dengan demikian tidak terdapat dokumen vector yang berasal dari file yang sudah tidak tersedia di MinIO.
 
 ## Replace Dokumen
 
-Jika user mengupload file dengan nama yang sama pada category yang sama dengan opsi **Ganti jika sudah ada**:
+Jika user mengupload file dengan nama yang sama pada category yang sama dengan opsi **Replace jika sudah ada**:
 
 **Non-versioned (semua kategori selain Pricelist):**
 
 ```text
-Upload dengan "Ganti jika sudah ada"
+Upload dengan "Replace jika sudah ada"
       ↓
 File di MinIO ditimpa
       ↓
 Screening dijalankan ulang
+      ↓
+approval_status → pending
 ```
 
-Vector dan status lama **tidak** dihapus. Chatbot tetap memakai isi lama sampai admin menekan **Ingest** (chunk yang fingerprint-nya sama dilewati, chunk usang dihapus), dan status tetap `success` sampai saat itu.
+Vector dan status ingest lama **tidak** dihapus, tetapi dokumen **tidak dipakai chatbot** sampai di-approve ulang. Setelah di-approve, chatbot memakai isi lama sampai admin menekan **Ingest** (chunk yang fingerprint-nya sama dilewati, chunk usang dihapus). Langkah yang benar: Upload → Ingest → Approve.
 
 **Pricelist:** replace dan versioning mengikuti aturan khusus — lihat [`versioning.md`](../kebijakan/versioning.md).
 
 ## Endpoint Dashboard
 
-| Method   | Endpoint                      | Fungsi                            |
-| -------- | ------------------------------ | ---------------------------------- |
-| `POST`   | `/api/admin/documents/upload` | Upload atau replace file          |
-| `GET`    | `/api/admin/documents`        | Menampilkan daftar dokumen        |
-| `POST`   | `/api/admin/ingest`           | Ingest dokumen                    |
-| `POST`   | `/api/admin/un-ingest`        | Menghapus hasil indexing          |
-| `DELETE` | `/api/admin/documents/delete` | Menghapus file dan hasil indexing |
-| `GET`    | `/api/admin/documents/download` | Mengunduh file sumber           |
-| `POST`   | `/api/admin/sync`             | Sinkronisasi (tombol "Sync Semua") |
+| Method   | Endpoint                        | Fungsi                                |
+| -------- | ------------------------------- | ------------------------------------- |
+| `POST`   | `/api/admin/documents/upload`   | Upload atau replace file (+ metadata) |
+| `GET`    | `/api/admin/documents`          | Menampilkan daftar dokumen            |
+| `POST`   | `/api/admin/documents/approval` | Approve / revoke dokumen              |
+| `POST`   | `/api/admin/documents/metadata` | Mengubah metadata dokumen             |
+| `POST`   | `/api/admin/ingest`             | Ingest dokumen                        |
+| `POST`   | `/api/admin/un-ingest`          | Menghapus hasil indexing              |
+| `DELETE` | `/api/admin/documents/delete`   | Menghapus file dan hasil indexing     |
+| `GET`    | `/api/admin/documents/download` | Mengunduh file sumber                 |
+| `POST`   | `/api/admin/sync`              | Sinkronisasi (belum ada tombol di UI) |
 
 Semua endpoint membutuhkan role:
 
 ```text
 Admin
 ```
-
-> ⚠️ Dashboard saat ini mengirim `X-User-Role: Admin` secara hardcode (`ADMIN_ROLE_HEADER` di `dashboard.js`, ada TODO di kode).
 
 Detail request/response setiap endpoint di atas tersedia pada [`admin-endpoints.md`](admin-endpoints.md).
 
@@ -254,7 +281,7 @@ Supabase / pgvector
   = Indexed representation
 
 document_status
-  = Ingestion state
+  = Ingestion state, approval, versioning, doc_metadata
 ```
 
 MinIO menyimpan file asli, sedangkan Supabase/pgvector menyimpan chunk dan embedding yang digunakan oleh sistem retrieval.
